@@ -25,8 +25,6 @@ logger = Loguru_Logging(config, Program_Name, Program_Version)
 
 ----------------------------------------------------------------------------------------------------------------------------------------
 '''
-global script_dir
-
 if getattr(sys, 'frozen', False):
     # When packaged into a single executable (e.g., PyInstaller), place files
     # next to the executable to keep configuration and logs with the binary.
@@ -57,14 +55,19 @@ def Load_Config(default_config, Program_Name):
     # Create config file with default values if it does not exist.
     if not os.path.exists(config_path):
         # Persist defaults so operators can edit them later.
-        default_config = default_config 
-        with open(config_path, 'w') as new_config_file:
+        with open(config_path, 'w', encoding='utf-8') as new_config_file:
             json.dump(default_config, new_config_file, indent=4)
 
-    # Load configuration
-    with open(config_path, 'r') as config_file:
-        config = json.load(config_file)
-    
+    # Load configuration. If the file is corrupted/invalid JSON, fall back to
+    # the in-memory defaults instead of crashing the whole program on startup.
+    try:
+        with open(config_path, 'r', encoding='utf-8') as config_file:
+            config = json.load(config_file)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"[WARN] Failed to read config '{config_path}': {exc}. "
+              f"Falling back to default configuration.", file=sys.stderr)
+        config = default_config
+
     return config
 
 # ----------------------- Loguru Logging Setup -----------------------
@@ -109,7 +112,10 @@ def Loguru_Logging(config, Program_Name, Program_Version):
         level=log_Level,
         rotation=Log_Size,
         retention=f"{log_Backup} days",
-        compression="zip"
+        compression="zip",
+        enqueue=True,   # คิวข้อความ + เขียนด้วย thread เดียว: ปลอดภัยกับ multi-process
+                        # และทำให้การหมุนไฟล์ (rotation) ตอนถึง Limit ไม่ชน file lock บน Windows
+        catch=True,     # ถ้า sink เกิด error (เช่น rotate/zip ล้มเหลว) ไม่ทำให้โปรแกรมล่ม
     )
 
     logger.info('-' * 117)

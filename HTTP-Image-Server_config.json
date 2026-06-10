@@ -1,0 +1,22 @@
+{
+    "Mapdrive": [
+        {
+            "name": "DC",
+            "path": "C:\\\\DC"
+        },
+        {
+            "name": "DR",
+            "path": "C:\\\\DR"
+        },
+        {
+            "name": "Archive",
+            "path": "C:\\\\Archive"
+        }
+    ],
+    "Port_Server": 8080,
+    "Max_Workers": 4,
+    "log_Level": "DEBUG",
+    "Log_Console": 1,
+    "log_Backup": 90,
+    "Log_Size": "10 MB"
+}

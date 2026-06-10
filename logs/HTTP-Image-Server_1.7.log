@@ -1,0 +1,118 @@
+2025-12-20T00:45:29.233627+0700 | INFO | 20972 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:29.235626+0700 | INFO | 20972 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:29.236626+0700 | INFO | 20972 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:29.236626+0700 | DEBUG | 20972 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:29.248590+0700 | INFO | 20972 | emit | Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+2025-12-20T00:45:29.249592+0700 | INFO | 20972 | emit | Started parent process [11716]
+2025-12-20T00:45:32.480423+0700 | INFO | 25488 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.481418+0700 | INFO | 25488 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:32.482417+0700 | INFO | 25488 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.482417+0700 | DEBUG | 25488 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:32.580480+0700 | INFO | 39500 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.581475+0700 | INFO | 39500 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:32.582474+0700 | INFO | 39500 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.582474+0700 | DEBUG | 39500 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:32.586477+0700 | INFO | 38144 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.587483+0700 | INFO | 38144 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:32.588476+0700 | INFO | 38144 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.589477+0700 | DEBUG | 38144 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:32.603479+0700 | INFO | 30268 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.604501+0700 | INFO | 30268 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:32.605479+0700 | INFO | 30268 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:32.606477+0700 | DEBUG | 30268 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:32.753510+0700 | ERROR | 25488 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:32.788660+0700 | ERROR | 38144 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:32.799083+0700 | ERROR | 39500 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:32.821918+0700 | ERROR | 30268 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:33.165382+0700 | INFO | 20972 | emit | Waiting for child process [32576]
+2025-12-20T00:45:33.166320+0700 | INFO | 20972 | emit | Child process [32576] died
+2025-12-20T00:45:33.184708+0700 | INFO | 20972 | emit | Waiting for child process [27732]
+2025-12-20T00:45:33.184708+0700 | INFO | 20972 | emit | Child process [27732] died
+2025-12-20T00:45:33.206851+0700 | INFO | 20972 | emit | Waiting for child process [16008]
+2025-12-20T00:45:33.207849+0700 | INFO | 20972 | emit | Child process [16008] died
+2025-12-20T00:45:33.230831+0700 | INFO | 20972 | emit | Waiting for child process [33212]
+2025-12-20T00:45:33.231839+0700 | INFO | 20972 | emit | Child process [33212] died
+2025-12-20T00:45:36.903646+0700 | INFO | 31656 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.905647+0700 | INFO | 31656 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:36.905647+0700 | INFO | 31656 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.910941+0700 | DEBUG | 31656 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:36.960983+0700 | INFO | 14312 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.961969+0700 | INFO | 14312 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:36.962967+0700 | INFO | 14312 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.962967+0700 | DEBUG | 14312 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:36.977015+0700 | INFO | 2960 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.977015+0700 | INFO | 2960 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:36.978475+0700 | INFO | 2960 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.979491+0700 | DEBUG | 2960 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:36.988636+0700 | INFO | 16092 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.989633+0700 | INFO | 16092 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:36.990636+0700 | INFO | 16092 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:36.991634+0700 | DEBUG | 16092 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:37.107254+0700 | ERROR | 31656 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:37.159847+0700 | ERROR | 14312 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:37.176370+0700 | ERROR | 2960 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:37.178366+0700 | ERROR | 16092 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:37.546674+0700 | INFO | 20972 | emit | Waiting for child process [32564]
+2025-12-20T00:45:37.547669+0700 | INFO | 20972 | emit | Child process [32564] died
+2025-12-20T00:45:37.571018+0700 | INFO | 20972 | emit | Waiting for child process [10492]
+2025-12-20T00:45:37.572009+0700 | INFO | 20972 | emit | Child process [10492] died
+2025-12-20T00:45:37.600010+0700 | INFO | 20972 | emit | Waiting for child process [6248]
+2025-12-20T00:45:37.603209+0700 | INFO | 20972 | emit | Child process [6248] died
+2025-12-20T00:45:37.639505+0700 | INFO | 20972 | emit | Waiting for child process [36916]
+2025-12-20T00:45:37.640518+0700 | INFO | 20972 | emit | Child process [36916] died
+2025-12-20T00:45:40.810129+0700 | INFO | 31284 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.812274+0700 | INFO | 31284 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:40.812274+0700 | INFO | 31284 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.813289+0700 | DEBUG | 31284 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:40.819291+0700 | INFO | 12628 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.821371+0700 | INFO | 12628 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:40.825811+0700 | INFO | 12628 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.828813+0700 | DEBUG | 12628 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:40.903342+0700 | INFO | 24144 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.904348+0700 | INFO | 24144 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:40.905340+0700 | INFO | 24144 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.906340+0700 | DEBUG | 24144 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:40.906340+0700 | INFO | 19676 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.907579+0700 | INFO | 19676 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:40.907579+0700 | INFO | 19676 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:40.908591+0700 | DEBUG | 19676 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:41.039831+0700 | ERROR | 31284 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:41.059866+0700 | ERROR | 12628 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:41.106706+0700 | ERROR | 24144 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:41.109707+0700 | ERROR | 19676 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:41.461238+0700 | INFO | 20972 | emit | Waiting for child process [23412]
+2025-12-20T00:45:41.462227+0700 | INFO | 20972 | emit | Child process [23412] died
+2025-12-20T00:45:41.482797+0700 | INFO | 20972 | emit | Waiting for child process [22584]
+2025-12-20T00:45:41.484050+0700 | INFO | 20972 | emit | Child process [22584] died
+2025-12-20T00:45:41.509054+0700 | INFO | 20972 | emit | Waiting for child process [31380]
+2025-12-20T00:45:41.510054+0700 | INFO | 20972 | emit | Child process [31380] died
+2025-12-20T00:45:41.531394+0700 | INFO | 20972 | emit | Waiting for child process [13392]
+2025-12-20T00:45:41.532569+0700 | INFO | 20972 | emit | Child process [13392] died
+2025-12-20T00:45:44.712589+0700 | INFO | 4216 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.713586+0700 | INFO | 4216 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+---------------------------------------------------------------------------------
+2025-12-20T00:45:44.713586+0700 | INFO | 31048 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:44.713586+0700 | INFO | 4216 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.714590+0700 | INFO | 31048 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.714590+0700 | DEBUG | 4216 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:44.714590+0700 | DEBUG | 31048 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:44.770510+0700 | INFO | 25748 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.772510+0700 | INFO | 25748 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:44.773517+0700 | INFO | 25748 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.773517+0700 | INFO | 12452 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.774511+0700 | DEBUG | 25748 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:44.774511+0700 | INFO | 12452 | Loguru_Logging | Start HTTP-Image-Server Version 1.7
+2025-12-20T00:45:44.774511+0700 | INFO | 12452 | Loguru_Logging | ---------------------------------------------------------------------------------------------------------------------
+2025-12-20T00:45:44.776026+0700 | DEBUG | 12452 | <module> | Loaded configuration: {'Mapdrive': [{'name': 'DC', 'path': 'C:\\\\DC'}, {'name': 'DR', 'path': 'C:\\\\DR'}, {'name': 'Archive', 'path': 'C:\\\\Archive'}], 'Port_Server': 8080, 'Max_Workers': 4, 'log_Level': 'DEBUG', 'Log_Console': 1, 'log_Backup': 90, 'Log_Size': '10 MB'}
+2025-12-20T00:45:44.910953+0700 | ERROR | 31048 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:44.924399+0700 | ERROR | 4216 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:44.981268+0700 | ERROR | 25748 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:44.990769+0700 | ERROR | 12452 | emit | Error loading ASGI app. Could not import module "main".
+2025-12-20T00:45:45.339178+0700 | INFO | 20972 | emit | Waiting for child process [35552]
+2025-12-20T00:45:45.340170+0700 | INFO | 20972 | emit | Child process [35552] died
+2025-12-20T00:45:45.364188+0700 | INFO | 20972 | emit | Waiting for child process [38628]
+2025-12-20T00:45:45.365183+0700 | INFO | 20972 | emit | Child process [38628] died
+2025-12-20T00:45:45.393298+0700 | INFO | 20972 | emit | Waiting for child process [8668]
+2025-12-20T00:45:45.394297+0700 | INFO | 20972 | emit | Child process [8668] died
+2025-12-20T00:45:45.429692+0700 | INFO | 20972 | emit | Waiting for child process [6752]
+2025-12-20T00:45:45.430691+0700 | INFO | 20972 | emit | Child process [6752] died

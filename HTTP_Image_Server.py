@@ -15,7 +15,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "2.2"  # single-process multi-thread; Max_Workers = I/O thread count
+Program_Version = "2.3"  # true multi-process via shared socket (frozen-safe); Max_Workers = processes
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -28,7 +28,7 @@ default_config = {
         # network share:  {"name": "NAS", "path": "\\\\172.30.54.1\\image\\"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 32,           # จำนวน I/O thread (process เดียว, port เดียว) เพิ่มถ้า share ช้า/โหลดสูง
+    "Max_Workers": 4,            # จำนวน worker process (กระจายข้าม CPU core); แต่ละ process มี 64 I/O thread
     "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
@@ -41,33 +41,35 @@ config = Load_Config(default_config, Program_Name)
 logger = Loguru_Logging(config, Program_Name, Program_Version)
 logger.debug("Loaded configuration: {}", config)
 
-# Max_Workers = จำนวน thread สำหรับงาน I/O ที่ block (เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
-# รันแบบ process เดียวเสมอ (รองรับ .exe) แต่รับงาน I/O พร้อมกันได้มากขึ้นตามค่านี้
-# ตั้งเท่าไรได้ thread เท่านั้น (ขั้นต่ำ 1)
+# Max_Workers = จำนวน worker "process" จริง (กระจายงานข้าม CPU core = throughput สูงสุด)
+# รองรับ .exe เพราะ spawn ผ่าน multiprocessing + freeze_support (ไม่ใช่ uvicorn --workers ที่ crash)
 try:
-    THREAD_WORKERS = max(1, int(config.get("Max_Workers", 32)))
+    WORKER_PROCESSES = max(1, int(config.get("Max_Workers", 4)))
 except (TypeError, ValueError):
-    THREAD_WORKERS = 32
+    WORKER_PROCESSES = 4
+
+# จำนวน I/O thread ต่อ 1 process (สำหรับงานที่ block: เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
+IO_THREADS = 64
 
 
 @asynccontextmanager
 async def lifespan(_app: "FastAPI"):
-    """ขยาย threadpool ตอน startup ให้รองรับ I/O พร้อมกันได้มากขึ้น.
+    """ขยาย threadpool ของแต่ละ process ตอน startup ให้รับงาน I/O พร้อมกันได้มากขึ้น.
 
     - asyncio default executor: ใช้โดย asyncio.to_thread (os.path.isfile)
     - anyio thread limiter:     ใช้โดย FileResponse ตอนอ่านไฟล์ส่งกลับ
-    ทั้งคู่ default ค่อนข้างต่ำ (~32-40) จึงตั้งให้สูงขึ้นตาม Thread_Workers
+    ทั้งคู่ default ค่อนข้างต่ำ (~32-40) จึงตั้งให้สูงขึ้นเป็น IO_THREADS
     """
     loop = asyncio.get_running_loop()
     loop.set_default_executor(
-        ThreadPoolExecutor(max_workers=THREAD_WORKERS, thread_name_prefix="io")
+        ThreadPoolExecutor(max_workers=IO_THREADS, thread_name_prefix="io")
     )
     try:
         import anyio
-        anyio.to_thread.current_default_thread_limiter().total_tokens = THREAD_WORKERS
+        anyio.to_thread.current_default_thread_limiter().total_tokens = IO_THREADS
     except Exception as ex:  # pragma: no cover - กันกรณี anyio เปลี่ยน API
         logger.warning("ปรับ anyio thread limiter ไม่ได้: {}", ex)
-    logger.info("Thread pool tuned for I/O concurrency | workers={}", THREAD_WORKERS)
+    logger.debug("I/O thread pool ready | threads_per_proc={}", IO_THREADS)
     yield
 
 
@@ -278,20 +280,57 @@ async def get_image(file_path: str):
         return JSONResponse(status_code=500, content={"message": f"An error occurred: {e}"})
 
 
-if __name__ == "__main__":
-    import multiprocessing as mp
-    mp.freeze_support()  # ปลอดภัยกับ .exe (frozen build)
-
-    port = int(config.get("Port_Server", 8080))
-    # รันแบบ single-process + multi-thread เสมอ (รองรับ .exe ได้แน่นอน ไม่มี crash loop)
-    # ความสามารถรับงานพร้อมกันคุมด้วย Max_Workers (จำนวน I/O thread, ตั้งใน lifespan)
-    logger.info("Starting | single-process, multi-thread | io_threads={} | port={}",
-                THREAD_WORKERS, port)
-    uvicorn.run(
+def _run_uvicorn(sockets=None):
+    """รัน uvicorn 1 process. ถ้าส่ง sockets มา = ใช้ socket ที่ parent bind ไว้ร่วมกัน."""
+    cfg = uvicorn.Config(
         app,
         host="0.0.0.0",
-        port=port,
+        port=int(config.get("Port_Server", 8080)),
         log_config=None,
         access_log=False,  # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
         log_level=config.get("log_Level", "info").lower(),
     )
+    uvicorn.Server(cfg).run(sockets=sockets)
+
+
+if __name__ == "__main__":
+    import socket
+    import multiprocessing as mp
+    mp.freeze_support()  # ⭐ จำเป็นสำหรับ .exe (PyInstaller) ตอน spawn worker
+
+    port = int(config.get("Port_Server", 8080))
+
+    if WORKER_PROCESSES <= 1:
+        logger.info("Starting | 1 process | {} I/O threads | port={}", IO_THREADS, port)
+        _run_uvicorn()
+    else:
+        # bind socket เดียว แล้วให้ทุก worker process accept ร่วมกัน (kernel load-balance)
+        # ต่างจาก uvicorn --workers: เรา spawn เองด้วย multiprocessing.Process + freeze_support
+        # จึงรันใน .exe ได้โดยไม่ crash loop และทุก process ใช้ port เดียวกันได้ (socket แชร์)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("0.0.0.0", port))
+        sock.listen(2048)
+        sock.set_inheritable(True)
+
+        logger.info("Starting | {} worker processes (shared port {}) | {} I/O threads/proc",
+                    WORKER_PROCESSES, port, IO_THREADS)
+        procs = []
+        for i in range(WORKER_PROCESSES):
+            p = mp.Process(target=_run_uvicorn, kwargs={"sockets": [sock]},
+                           name=f"worker-{i + 1}", daemon=False)
+            p.start()
+            procs.append(p)
+            logger.info("  worker-{} started | pid={}", i + 1, p.pid)
+
+        # parent ไม่ต้อง accept เอง: ปิด copy ของ socket ทิ้ง (worker มี handle ของตัวเองแล้ว)
+        sock.close()
+        try:
+            for p in procs:
+                p.join()
+        except KeyboardInterrupt:
+            logger.info("Shutting down {} workers...", len(procs))
+            for p in procs:
+                p.terminate()
+            for p in procs:
+                p.join()

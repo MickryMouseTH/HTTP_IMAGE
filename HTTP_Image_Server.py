@@ -13,7 +13,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "1.9"  # perf: multi-worker, cache headers, early-exit, less per-request logging
+Program_Version = "2.0"  # fix multi-worker crash-loop (frozen->single), startup mount probe
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -22,11 +22,11 @@ default_config = {
         {"name": "DC", "path": "C:\\DC"},
         {"name": "DR", "path": "C:\\DR"},
         {"name": "Archive", "path": "C:\\Archive"},
-        # {"name": "Backup1", "path": "D:\\Backup1"},
-        # {"name": "NAS", "path": "\\\\NAS01\\Share\\Images"},
+        # local disk:    {"name": "Backup1", "path": "D:\\Backup1"},
+        # network share:  {"name": "NAS", "path": "\\\\172.30.54.1\\image\\"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 4,            # >1 = เปิด multi-worker (รับโหลดพร้อมกันได้มากขึ้น)
+    "Max_Workers": 1,            # .exe (frozen) รองรับแค่ 1 เสมอ; >1 ใช้ได้เฉพาะรันจาก source .py
     "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
@@ -71,10 +71,33 @@ _CACHE_HEADERS = {"Cache-Control": f"public, max-age={CACHE_MAX_AGE}"}
 # สรุปการตั้งค่าตอน start (INFO เห็นจำนวน, DEBUG เห็น path เต็มของแต่ละ mount)
 logger.info("Loaded {} mount(s): {} | Cache-Control max-age={}s",
             len(MOUNTS), [name for name, _ in MOUNTS], CACHE_MAX_AGE)
-for _name, _root in MOUNTS:
-    logger.debug("Mount [{}] -> {}", _name, _root)
 if not MOUNTS:
     logger.warning("No usable mount configured — every /image request will return 500")
+
+
+def _probe_mounts():
+    """ตรวจว่าแต่ละ mount root เข้าถึงได้จริงไหมตอน startup.
+
+    ช่วยดีบักเคส "เรียกไม่เจอ" โดยตรง โดยเฉพาะ network share (UNC) ที่
+    เครื่องอาจไม่มีสิทธิ์/เน็ตเข้าไม่ถึง -> ถ้าเข้าไม่ได้จะ log WARNING ชัดเจน
+    แทนที่จะเงียบแล้วตอบ 404 ทุก request.
+    """
+    for name, root in MOUNTS:
+        try:
+            reachable = os.path.isdir(root)
+        except Exception as ex:
+            logger.warning("Mount [{}] probe ERROR | {} | {}", name, root, ex)
+            continue
+        if reachable:
+            logger.info("Mount [{}] OK -> {}", name, root)
+        else:
+            logger.warning(
+                "Mount [{}] NOT accessible -> {} "
+                "(network share ล่ม? path ผิด? account ไม่มีสิทธิ์เข้า share?)",
+                name, root)
+
+
+_probe_mounts()
 
 
 # ----------------------- Uvicorn -> Loguru Redirect -----------------------
@@ -232,6 +255,20 @@ if __name__ == "__main__":
     except (TypeError, ValueError):
         workers = 1
 
+    # ⚠️ uvicorn multi-worker (workers>1) ใช้ไม่ได้กับ PyInstaller/frozen build:
+    # worker ถูก spawn โดย re-launch ตัว .exe เอง แล้ว import app ไม่สำเร็จ
+    # -> worker ตายทันที -> supervisor restart วนไม่หยุด (crash loop:
+    #    "Waiting for child process / Child process died")
+    # ดังนั้นเมื่อเป็น frozen ให้บังคับ single process เสมอ
+    is_frozen = getattr(sys, "frozen", False)
+    if workers > 1 and is_frozen:
+        logger.warning(
+            "Max_Workers={} แต่ multi-worker ใช้กับ .exe (frozen build) ไม่ได้ "
+            "(worker จะ crash loop) -> รันแบบ SINGLE-PROCESS แทน. "
+            "ถ้าต้องการหลาย process จริง ให้รันหลาย instance คนละ port "
+            "แล้ววาง reverse proxy (nginx/IIS) ไว้ข้างหน้า", workers)
+        workers = 1
+
     run_kwargs = dict(
         host="0.0.0.0",
         port=int(config.get("Port_Server", 8080)),
@@ -241,7 +278,7 @@ if __name__ == "__main__":
     )
 
     if workers > 1:
-        # multi-worker ต้องส่ง app เป็น import string (module:attr) -> ชื่อโมดูลห้ามมีขีด
+        # multi-worker (รันจาก source .py เท่านั้น) ต้องส่ง app เป็น import string
         # log file ปลอดภัยกับหลาย process แล้วเพราะ LogLibrary ใช้ enqueue=True
         logger.info("Starting in MULTI-WORKER mode | workers={} | port={}",
                     workers, run_kwargs["port"])

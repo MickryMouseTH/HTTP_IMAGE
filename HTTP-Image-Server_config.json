@@ -2,19 +2,20 @@
     "Mapdrive": [
         {
             "name": "DC",
-            "path": "C:\\\\DC"
+            "path": "C:\\DC"
         },
         {
             "name": "DR",
-            "path": "C:\\\\DR"
+            "path": "C:\\DR"
         },
         {
             "name": "Archive",
-            "path": "C:\\\\Archive"
+            "path": "C:\\Archive"
         }
     ],
     "Port_Server": 8080,
-    "Max_Workers": 4,
+    "Max_Workers": 1,
+    "Cache_Max_Age": 3600,
     "log_Level": "DEBUG",
     "Log_Console": 1,
     "log_Backup": 90,

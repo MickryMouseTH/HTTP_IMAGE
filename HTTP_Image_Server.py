@@ -15,7 +15,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "2.1"  # single-process concurrency: tunable I/O thread pool (Thread_Workers)
+Program_Version = "2.2"  # single-process multi-thread; Max_Workers = I/O thread count
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -28,8 +28,7 @@ default_config = {
         # network share:  {"name": "NAS", "path": "\\\\172.30.54.1\\image\\"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 1,            # .exe (frozen) รองรับแค่ 1 เสมอ; >1 ใช้ได้เฉพาะรันจาก source .py
-    "Thread_Workers": 64,        # จำนวน thread สำหรับงาน I/O พร้อมกัน (เพิ่มถ้า share ช้า/โหลดสูง)
+    "Max_Workers": 32,           # จำนวน I/O thread (process เดียว, port เดียว) เพิ่มถ้า share ช้า/โหลดสูง
     "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
@@ -42,12 +41,13 @@ config = Load_Config(default_config, Program_Name)
 logger = Loguru_Logging(config, Program_Name, Program_Version)
 logger.debug("Loaded configuration: {}", config)
 
-# จำนวน thread สำหรับงาน I/O ที่ block (เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
-# process เดียวแต่รับงาน I/O พร้อมกันได้มากขึ้น = concurrency สูงขึ้นโดยไม่ต้อง multi-process
+# Max_Workers = จำนวน thread สำหรับงาน I/O ที่ block (เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
+# รันแบบ process เดียวเสมอ (รองรับ .exe) แต่รับงาน I/O พร้อมกันได้มากขึ้นตามค่านี้
+# ตั้งเท่าไรได้ thread เท่านั้น (ขั้นต่ำ 1)
 try:
-    THREAD_WORKERS = max(8, int(config.get("Thread_Workers", 64)))
+    THREAD_WORKERS = max(1, int(config.get("Max_Workers", 32)))
 except (TypeError, ValueError):
-    THREAD_WORKERS = 64
+    THREAD_WORKERS = 32
 
 
 @asynccontextmanager
@@ -280,41 +280,18 @@ async def get_image(file_path: str):
 
 if __name__ == "__main__":
     import multiprocessing as mp
-    mp.freeze_support()  # ช่วยบน Windows โดยเฉพาะเวลา spawn workers
+    mp.freeze_support()  # ปลอดภัยกับ .exe (frozen build)
 
-    try:
-        workers = int(config.get("Max_Workers", 1) or 1)
-    except (TypeError, ValueError):
-        workers = 1
-
-    # ⚠️ uvicorn multi-worker (workers>1) ใช้ไม่ได้กับ PyInstaller/frozen build:
-    # worker ถูก spawn โดย re-launch ตัว .exe เอง แล้ว import app ไม่สำเร็จ
-    # -> worker ตายทันที -> supervisor restart วนไม่หยุด (crash loop:
-    #    "Waiting for child process / Child process died")
-    # ดังนั้นเมื่อเป็น frozen ให้บังคับ single process เสมอ
-    is_frozen = getattr(sys, "frozen", False)
-    if workers > 1 and is_frozen:
-        logger.warning(
-            "Max_Workers={} แต่ multi-worker ใช้กับ .exe (frozen build) ไม่ได้ "
-            "(worker จะ crash loop) -> รันแบบ SINGLE-PROCESS แทน. "
-            "ถ้าต้องการหลาย process จริง ให้รันหลาย instance คนละ port "
-            "แล้ววาง reverse proxy (nginx/IIS) ไว้ข้างหน้า", workers)
-        workers = 1
-
-    run_kwargs = dict(
+    port = int(config.get("Port_Server", 8080))
+    # รันแบบ single-process + multi-thread เสมอ (รองรับ .exe ได้แน่นอน ไม่มี crash loop)
+    # ความสามารถรับงานพร้อมกันคุมด้วย Max_Workers (จำนวน I/O thread, ตั้งใน lifespan)
+    logger.info("Starting | single-process, multi-thread | io_threads={} | port={}",
+                THREAD_WORKERS, port)
+    uvicorn.run(
+        app,
         host="0.0.0.0",
-        port=int(config.get("Port_Server", 8080)),
+        port=port,
         log_config=None,
         access_log=False,  # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
         log_level=config.get("log_Level", "info").lower(),
     )
-
-    if workers > 1:
-        # multi-worker (รันจาก source .py เท่านั้น) ต้องส่ง app เป็น import string
-        # log file ปลอดภัยกับหลาย process แล้วเพราะ LogLibrary ใช้ enqueue=True
-        logger.info("Starting in MULTI-WORKER mode | workers={} | port={}",
-                    workers, run_kwargs["port"])
-        uvicorn.run("HTTP_Image_Server:app", workers=workers, **run_kwargs)
-    else:
-        logger.info("Starting in SINGLE-PROCESS mode | port={}", run_kwargs["port"])
-        uvicorn.run(app, **run_kwargs)

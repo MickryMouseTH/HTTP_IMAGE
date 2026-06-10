@@ -15,7 +15,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "2.3"  # true multi-process via shared socket (frozen-safe); Max_Workers = processes
+Program_Version = "2.4"  # revert to single-process (Windows can't share socket); Max_Workers = I/O threads
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -28,7 +28,7 @@ default_config = {
         # network share:  {"name": "NAS", "path": "\\\\172.30.54.1\\image\\"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 4,            # จำนวน worker process (กระจายข้าม CPU core); แต่ละ process มี 64 I/O thread
+    "Max_Workers": 64,           # จำนวน I/O thread (process เดียว). share ช้า/โหลดสูง -> เพิ่มเป็น 128-256
     "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
@@ -41,15 +41,14 @@ config = Load_Config(default_config, Program_Name)
 logger = Loguru_Logging(config, Program_Name, Program_Version)
 logger.debug("Loaded configuration: {}", config)
 
-# Max_Workers = จำนวน worker "process" จริง (กระจายงานข้าม CPU core = throughput สูงสุด)
-# รองรับ .exe เพราะ spawn ผ่าน multiprocessing + freeze_support (ไม่ใช่ uvicorn --workers ที่ crash)
+# Max_Workers = จำนวน I/O thread (concurrency สำหรับงานที่ block: เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
+# รันแบบ process เดียว (เป็นวิธีเดียวที่ .exe ตัวเดียวบน Windows เสิร์ฟ port เดียวได้แน่นอน
+# เพราะ Windows แชร์ listening socket ข้าม process ไม่ได้ -> IOCP error WinError 87)
+# ยิ่ง share ช้า ยิ่งควรเพิ่มค่านี้ (แต่ละ thread รอ network ได้พร้อมกัน)
 try:
-    WORKER_PROCESSES = max(1, int(config.get("Max_Workers", 4)))
+    IO_THREADS = max(8, int(config.get("Max_Workers", 64)))
 except (TypeError, ValueError):
-    WORKER_PROCESSES = 4
-
-# จำนวน I/O thread ต่อ 1 process (สำหรับงานที่ block: เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
-IO_THREADS = 64
+    IO_THREADS = 64
 
 
 @asynccontextmanager
@@ -280,57 +279,20 @@ async def get_image(file_path: str):
         return JSONResponse(status_code=500, content={"message": f"An error occurred: {e}"})
 
 
-def _run_uvicorn(sockets=None):
-    """รัน uvicorn 1 process. ถ้าส่ง sockets มา = ใช้ socket ที่ parent bind ไว้ร่วมกัน."""
-    cfg = uvicorn.Config(
+if __name__ == "__main__":
+    import multiprocessing as mp
+    mp.freeze_support()  # ปลอดภัยกับ .exe (frozen build)
+
+    port = int(config.get("Port_Server", 8080))
+    # process เดียวเสมอ: เป็นวิธีเดียวที่ .exe ตัวเดียวเสิร์ฟ port เดียวบน Windows ได้แน่นอน
+    # (Windows แชร์ listening socket ข้าม process ไม่ได้ -> WinError 87)
+    # ต้องการ multi-core: รันหลาย instance คนละ port แล้ววาง reverse proxy (IIS/nginx) ข้างหน้า
+    logger.info("Starting | single-process | {} I/O threads | port={}", IO_THREADS, port)
+    uvicorn.run(
         app,
         host="0.0.0.0",
-        port=int(config.get("Port_Server", 8080)),
+        port=port,
         log_config=None,
         access_log=False,  # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
         log_level=config.get("log_Level", "info").lower(),
     )
-    uvicorn.Server(cfg).run(sockets=sockets)
-
-
-if __name__ == "__main__":
-    import socket
-    import multiprocessing as mp
-    mp.freeze_support()  # ⭐ จำเป็นสำหรับ .exe (PyInstaller) ตอน spawn worker
-
-    port = int(config.get("Port_Server", 8080))
-
-    if WORKER_PROCESSES <= 1:
-        logger.info("Starting | 1 process | {} I/O threads | port={}", IO_THREADS, port)
-        _run_uvicorn()
-    else:
-        # bind socket เดียว แล้วให้ทุก worker process accept ร่วมกัน (kernel load-balance)
-        # ต่างจาก uvicorn --workers: เรา spawn เองด้วย multiprocessing.Process + freeze_support
-        # จึงรันใน .exe ได้โดยไม่ crash loop และทุก process ใช้ port เดียวกันได้ (socket แชร์)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", port))
-        sock.listen(2048)
-        sock.set_inheritable(True)
-
-        logger.info("Starting | {} worker processes (shared port {}) | {} I/O threads/proc",
-                    WORKER_PROCESSES, port, IO_THREADS)
-        procs = []
-        for i in range(WORKER_PROCESSES):
-            p = mp.Process(target=_run_uvicorn, kwargs={"sockets": [sock]},
-                           name=f"worker-{i + 1}", daemon=False)
-            p.start()
-            procs.append(p)
-            logger.info("  worker-{} started | pid={}", i + 1, p.pid)
-
-        # parent ไม่ต้อง accept เอง: ปิด copy ของ socket ทิ้ง (worker มี handle ของตัวเองแล้ว)
-        sock.close()
-        try:
-            for p in procs:
-                p.join()
-        except KeyboardInterrupt:
-            logger.info("Shutting down {} workers...", len(procs))
-            for p in procs:
-                p.terminate()
-            for p in procs:
-                p.join()

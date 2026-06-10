@@ -4,6 +4,8 @@ import json
 import time
 import asyncio
 import logging
+from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
@@ -13,7 +15,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "2.0"  # fix multi-worker crash-loop (frozen->single), startup mount probe
+Program_Version = "2.1"  # single-process concurrency: tunable I/O thread pool (Thread_Workers)
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -27,6 +29,7 @@ default_config = {
     ],
     "Port_Server": 8080,
     "Max_Workers": 1,            # .exe (frozen) รองรับแค่ 1 เสมอ; >1 ใช้ได้เฉพาะรันจาก source .py
+    "Thread_Workers": 64,        # จำนวน thread สำหรับงาน I/O พร้อมกัน (เพิ่มถ้า share ช้า/โหลดสูง)
     "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
@@ -39,7 +42,36 @@ config = Load_Config(default_config, Program_Name)
 logger = Loguru_Logging(config, Program_Name, Program_Version)
 logger.debug("Loaded configuration: {}", config)
 
-app = FastAPI()
+# จำนวน thread สำหรับงาน I/O ที่ block (เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
+# process เดียวแต่รับงาน I/O พร้อมกันได้มากขึ้น = concurrency สูงขึ้นโดยไม่ต้อง multi-process
+try:
+    THREAD_WORKERS = max(8, int(config.get("Thread_Workers", 64)))
+except (TypeError, ValueError):
+    THREAD_WORKERS = 64
+
+
+@asynccontextmanager
+async def lifespan(_app: "FastAPI"):
+    """ขยาย threadpool ตอน startup ให้รองรับ I/O พร้อมกันได้มากขึ้น.
+
+    - asyncio default executor: ใช้โดย asyncio.to_thread (os.path.isfile)
+    - anyio thread limiter:     ใช้โดย FileResponse ตอนอ่านไฟล์ส่งกลับ
+    ทั้งคู่ default ค่อนข้างต่ำ (~32-40) จึงตั้งให้สูงขึ้นตาม Thread_Workers
+    """
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(
+        ThreadPoolExecutor(max_workers=THREAD_WORKERS, thread_name_prefix="io")
+    )
+    try:
+        import anyio
+        anyio.to_thread.current_default_thread_limiter().total_tokens = THREAD_WORKERS
+    except Exception as ex:  # pragma: no cover - กันกรณี anyio เปลี่ยน API
+        logger.warning("ปรับ anyio thread limiter ไม่ได้: {}", ex)
+    logger.info("Thread pool tuned for I/O concurrency | workers={}", THREAD_WORKERS)
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 MAPDRIVE = config.get("Mapdrive", [])
 
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import asyncio
 import logging
 from fastapi import FastAPI
@@ -12,20 +13,21 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "1.8"  # bugfix: safe log rotation (enqueue), faster path lookup
+Program_Version = "1.9"  # perf: multi-worker, cache headers, early-exit, less per-request logging
 # ---------------------------------------------------------------------
 
 default_config = {
     # Server เดียว แต่มีได้หลาย Path (เพิ่มได้เรื่อยๆ มากกว่า 4 ได้)
     "Mapdrive": [
-        {"name": "DC", "path": "C:\\\\DC"},
-        {"name": "DR", "path": "C:\\\\DR"},
-        {"name": "Archive", "path": "C:\\\\Archive"},
-        # {"name": "Backup1", "path": "D:\\\\Backup1"},
-        # {"name": "NAS", "path": "\\\\\\\\NAS01\\\\Share\\\\Images"},
+        {"name": "DC", "path": "C:\\DC"},
+        {"name": "DR", "path": "C:\\DR"},
+        {"name": "Archive", "path": "C:\\Archive"},
+        # {"name": "Backup1", "path": "D:\\Backup1"},
+        # {"name": "NAS", "path": "\\\\NAS01\\Share\\Images"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 4,
+    "Max_Workers": 4,            # >1 = เปิด multi-worker (รับโหลดพร้อมกันได้มากขึ้น)
+    "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
     "log_Level": "DEBUG",
     "Log_Console": 1,
     "log_Backup": 90,
@@ -61,6 +63,18 @@ def _normalize_mounts(mapdrive):
 
 # Precompute ครั้งเดียวตอนโหลดโมดูล
 MOUNTS = _normalize_mounts(MAPDRIVE)
+
+# ค่า cache สำหรับรูป (วินาที) — อ่านครั้งเดียว ไม่ต้องอ่านซ้ำทุก request
+CACHE_MAX_AGE = int(config.get("Cache_Max_Age", 3600))
+_CACHE_HEADERS = {"Cache-Control": f"public, max-age={CACHE_MAX_AGE}"}
+
+# สรุปการตั้งค่าตอน start (INFO เห็นจำนวน, DEBUG เห็น path เต็มของแต่ละ mount)
+logger.info("Loaded {} mount(s): {} | Cache-Control max-age={}s",
+            len(MOUNTS), [name for name, _ in MOUNTS], CACHE_MAX_AGE)
+for _name, _root in MOUNTS:
+    logger.debug("Mount [{}] -> {}", _name, _root)
+if not MOUNTS:
+    logger.warning("No usable mount configured — every /image request will return 500")
 
 
 # ----------------------- Uvicorn -> Loguru Redirect -----------------------
@@ -150,32 +164,62 @@ async def _file_exists(path: str) -> bool:
 
 @app.get("/image/{file_path:path}")
 async def get_image(file_path: str):
-    logger.info("Request received for file: {}", file_path)
+    # ระดับ log แยกตาม Log Level:
+    #   DEBUG   = เห็นทุกขั้น (รับ request, normalize path, ผลเช็คแต่ละ mount)
+    #   INFO    = สรุป 1 บรรทัด/request ที่สำเร็จ (status, mount, เวลา)
+    #   WARNING = 404 / path ไม่ถูกต้อง (400)
+    #   ERROR   = ข้อผิดพลาดที่ไม่คาดคิด (500)
+    start = time.perf_counter()
+    logger.debug("Request received | raw_path={!r}", file_path)
 
     try:
         rel = _clean_relative_path(file_path)
+        logger.debug("Normalized relative path | rel={!r}", rel)
 
         if not MOUNTS:
+            logger.error("Mapdrive config is missing or invalid (no usable mounts)")
             return JSONResponse(status_code=500, content={"message": "Mapdrive config is missing or invalid"})
 
-        tasks = [_check_one_mount(name, root_abs, rel) for name, root_abs in MOUNTS]
+        # สั่งเช็คทุก mount พร้อมกัน (concurrent) แต่ await ตามลำดับความสำคัญ
+        # -> เจอใน mount แรกก็คืนทันที ไม่ต้องรอ mount ช้า (เช่น NAS) ที่อยู่ท้าย ๆ
+        tasks = [asyncio.create_task(_check_one_mount(name, root_abs, rel))
+                 for name, root_abs in MOUNTS]
+        try:
+            for (name, _root), t in zip(MOUNTS, tasks):
+                try:
+                    r = await t
+                except Exception as ex:
+                    logger.debug("[{}] check error | {}", name, ex)
+                    r = None
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+                if r:
+                    found_name, full_path = r
+                    elapsed_ms = (time.perf_counter() - start) * 1000
+                    logger.debug("[{}] HIT | full_path={}", found_name, full_path)
+                    logger.info("200 OK | mount={} | rel={!r} | {:.1f} ms",
+                                found_name, rel, elapsed_ms)
+                    return FileResponse(full_path, headers=_CACHE_HEADERS)
 
-        for r in results:
-            if isinstance(r, Exception):
-                continue
-            if r:
-                name, full_path = r
-                logger.info("[{}] File found: {}", name, full_path)
-                return FileResponse(full_path)
+                logger.debug("[{}] miss", name)
 
-        return JSONResponse(status_code=404, content={"message": "Image not found"})
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            logger.warning("404 Not Found | rel={!r} | searched {} mount(s) | {:.1f} ms",
+                           rel, len(MOUNTS), elapsed_ms)
+            return JSONResponse(status_code=404, content={"message": "Image not found"})
+        finally:
+            # ยกเลิก task ที่ยังค้าง (เช่น mount ช้าที่ไม่ต้องรอแล้ว)
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
 
     except ValueError:
+        logger.warning("400 Bad Request | invalid path | raw_path={!r}", file_path)
         return JSONResponse(status_code=400, content={"message": "Invalid path"})
     except Exception as e:
-        logger.error("An unexpected error occurred: {}", e, exc_info=True)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.error("500 Internal Error | raw_path={!r} | {:.1f} ms | {}",
+                     file_path, elapsed_ms, e)
+        logger.opt(exception=True).debug("Traceback for 500 error")
         return JSONResponse(status_code=500, content={"message": f"An error occurred: {e}"})
 
 
@@ -183,11 +227,25 @@ if __name__ == "__main__":
     import multiprocessing as mp
     mp.freeze_support()  # ช่วยบน Windows โดยเฉพาะเวลา spawn workers
 
-    uvicorn.run(
-        app,  # ต้องตรงชื่อไฟล์จริง
+    try:
+        workers = int(config.get("Max_Workers", 1) or 1)
+    except (TypeError, ValueError):
+        workers = 1
+
+    run_kwargs = dict(
         host="0.0.0.0",
         port=int(config.get("Port_Server", 8080)),
         log_config=None,
-        access_log=True,
+        access_log=False,  # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
         log_level=config.get("log_Level", "info").lower(),
     )
+
+    if workers > 1:
+        # multi-worker ต้องส่ง app เป็น import string (module:attr) -> ชื่อโมดูลห้ามมีขีด
+        # log file ปลอดภัยกับหลาย process แล้วเพราะ LogLibrary ใช้ enqueue=True
+        logger.info("Starting in MULTI-WORKER mode | workers={} | port={}",
+                    workers, run_kwargs["port"])
+        uvicorn.run("HTTP_Image_Server:app", workers=workers, **run_kwargs)
+    else:
+        logger.info("Starting in SINGLE-PROCESS mode | port={}", run_kwargs["port"])
+        uvicorn.run(app, **run_kwargs)

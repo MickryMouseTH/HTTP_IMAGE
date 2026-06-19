@@ -15,7 +15,7 @@ from loguru import logger as loguru_logger  # ใช้ instance เดียว
 
 # ----------------------- Configuration Values -----------------------
 Program_Name = "HTTP-Image-Server"
-Program_Version = "2.4"  # revert to single-process (Windows can't share socket); Max_Workers = I/O threads
+Program_Version = "2.6"  # Linux/Docker multi-core (uvloop+workers) when not frozen; immutable cache
 # ---------------------------------------------------------------------
 
 default_config = {
@@ -28,10 +28,15 @@ default_config = {
         # network share:  {"name": "NAS", "path": "\\\\172.30.54.1\\image\\"},
     ],
     "Port_Server": 8080,
-    "Max_Workers": 64,           # จำนวน I/O thread (process เดียว). share ช้า/โหลดสูง -> เพิ่มเป็น 128-256
-    "Cache_Max_Age": 3600,       # อายุ cache ของรูป (วินาที) ส่งใน Cache-Control header
-    "log_Level": "DEBUG",
-    "Log_Console": 1,
+    "Max_Workers": 64,           # จำนวน I/O thread ต่อ process. share ช้า/โหลดสูง -> เพิ่มเป็น 128-256
+    "Workers": 0,                # จำนวน process (multi-core) — ใช้เฉพาะตอน "ไม่ frozen" (Linux/Docker).
+                                 #   0 = auto = os.cpu_count(); .exe (frozen) จะบังคับ 1 process เสมอ
+    "Cache_Max_Age": 31536000,   # อายุ cache ของรูป (วินาที). รูป immutable -> ตั้งยาวได้ (1 ปี)
+    "Cache_Immutable": 1,        # 1 = ใส่ directive `immutable` (client ไม่ revalidate เลย — รูปไม่เคยเปลี่ยน)
+    "log_Level": "INFO",         # prod ใช้ INFO; DEBUG เฉพาะตอนไล่ปัญหา (DEBUG = ~6 บรรทัด/req กิน throughput)
+    "Log_Console": 1,            # 3000-4000 req/s แนะนำตั้ง 0 (เขียน stdout ทุกบรรทัดเป็นคอขวด)
+    "Log_File": 1,               # 1 = เขียนไฟล์ log. ใน Docker หลาย worker แนะนำตั้ง 0 + Log_Console=1
+                                 #   (ให้ Docker เก็บ stdout แทน เลี่ยงหลาย process หมุนไฟล์ชนกัน)
     "log_Backup": 90,
     "Log_Size": "10 MB",
 }
@@ -99,7 +104,11 @@ MOUNTS = _normalize_mounts(MAPDRIVE)
 
 # ค่า cache สำหรับรูป (วินาที) — อ่านครั้งเดียว ไม่ต้องอ่านซ้ำทุก request
 CACHE_MAX_AGE = int(config.get("Cache_Max_Age", 3600))
-_CACHE_HEADERS = {"Cache-Control": f"public, max-age={CACHE_MAX_AGE}"}
+_cache_control = f"public, max-age={CACHE_MAX_AGE}"
+if int(config.get("Cache_Immutable", 0)) == 1:
+    # รูป immutable (ไม่เคยทับชื่อเดิม) -> client/nginx ไม่ต้อง revalidate เลย
+    _cache_control += ", immutable"
+_CACHE_HEADERS = {"Cache-Control": _cache_control}
 
 # สรุปการตั้งค่าตอน start (INFO เห็นจำนวน, DEBUG เห็น path เต็มของแต่ละ mount)
 logger.info("Loaded {} mount(s): {} | Cache-Control max-age={}s",
@@ -177,20 +186,36 @@ def setup_uvicorn_to_loguru():
 setup_uvicorn_to_loguru()
 # ---------------------------------------------------------------------
 
-async def _check_one_mount(name: str, root_abs: str, rel: str):
-    """ตรวจว่าไฟล์ rel มีอยู่ใน mount นี้ไหม (root_abs ถูก precompute มาแล้ว)."""
-    full_path = os.path.abspath(os.path.join(root_abs, rel))
+def _find_in_mounts(rel: str):
+    """ค้นไฟล์ rel ในทุก mount ตามลำดับความสำคัญ — รันใน "เธรดเดียว" ต่อ 1 คำขอ.
 
-    # กัน path traversal: ไฟล์ต้องอยู่ใต้ root จริง
-    try:
-        if os.path.commonpath([root_abs, full_path]) != root_abs:
-            return None
-    except ValueError:
-        # คนละ drive บน Windows -> ไม่ปลอดภัย
-        return None
+    เหตุผลที่ทำในเธรดเดียว (เปลี่ยนจาก v2.4 ที่ยิง 1 เธรด/mount):
+    ที่ 3000-4000 req/s การ dispatch N เธรด/คำขอ (N = จำนวน mount) ทำให้ thread pool
+    และ GIL แย่งกันหนัก (4000 req/s × 3 mount = 12,000 dispatch/s). การค้นแบบ early-exit
+    ตามลำดับความสำคัญอยู่แล้วทำให้เคสปกติ (ไฟล์อยู่ mount แรก) เสีย isfile แค่ครั้งเดียว
+    และไม่แตะ mount ช้าที่อยู่ท้าย ๆ เลย -> ทั้งเร็วกว่าและกินทรัพยากรน้อยกว่า
 
-    if await _file_exists(full_path):
-        return (name, full_path)
+    คืน (name, full_path) ของ mount แรกที่เจอ หรือ None.
+    """
+    for name, root_abs in MOUNTS:
+        # root_abs ถูก abspath ไว้แล้วตอน start และ rel ผ่าน _clean_relative_path
+        # (ไม่มี '..' / ไม่ใช่ absolute) -> join ได้ path ที่อยู่ใต้ root แน่นอน
+        full_path = os.path.join(root_abs, rel)
+
+        # กัน path traversal อีกชั้น (เผื่อ symlink/edge case): ไฟล์ต้องอยู่ใต้ root จริง
+        try:
+            if os.path.commonpath([root_abs, full_path]) != root_abs:
+                continue
+        except ValueError:
+            # คนละ drive บน Windows -> ไม่ปลอดภัย ข้าม mount นี้
+            continue
+
+        try:
+            if os.path.isfile(full_path):
+                return (name, full_path)
+        except OSError:
+            # mount เข้าไม่ถึงชั่วคราว (network share ล่ม) -> ข้ามไป mount ถัดไป
+            continue
     return None
 
 
@@ -214,10 +239,6 @@ def _clean_relative_path(p: str) -> str:
     return p
 
 
-async def _file_exists(path: str) -> bool:
-    return await asyncio.to_thread(os.path.isfile, path)
-
-
 @app.get("/image/{file_path:path}")
 async def get_image(file_path: str):
     # ระดับ log แยกตาม Log Level:
@@ -236,37 +257,22 @@ async def get_image(file_path: str):
             logger.error("Mapdrive config is missing or invalid (no usable mounts)")
             return JSONResponse(status_code=500, content={"message": "Mapdrive config is missing or invalid"})
 
-        # สั่งเช็คทุก mount พร้อมกัน (concurrent) แต่ await ตามลำดับความสำคัญ
-        # -> เจอใน mount แรกก็คืนทันที ไม่ต้องรอ mount ช้า (เช่น NAS) ที่อยู่ท้าย ๆ
-        tasks = [asyncio.create_task(_check_one_mount(name, root_abs, rel))
-                 for name, root_abs in MOUNTS]
-        try:
-            for (name, _root), t in zip(MOUNTS, tasks):
-                try:
-                    r = await t
-                except Exception as ex:
-                    logger.debug("[{}] check error | {}", name, ex)
-                    r = None
+        # ค้นทุก mount ตามลำดับความสำคัญในเธรดเดียว (early-exit เจอ mount แรกก็หยุด)
+        # -> ไม่บล็อก event loop และใช้แค่ 1 เธรด/คำขอ (ดูเหตุผลใน _find_in_mounts)
+        hit = await asyncio.to_thread(_find_in_mounts, rel)
 
-                if r:
-                    found_name, full_path = r
-                    elapsed_ms = (time.perf_counter() - start) * 1000
-                    logger.debug("[{}] HIT | full_path={}", found_name, full_path)
-                    logger.info("200 OK | mount={} | rel={!r} | {:.1f} ms",
-                                found_name, rel, elapsed_ms)
-                    return FileResponse(full_path, headers=_CACHE_HEADERS)
-
-                logger.debug("[{}] miss", name)
-
+        if hit:
+            found_name, full_path = hit
             elapsed_ms = (time.perf_counter() - start) * 1000
-            logger.warning("404 Not Found | rel={!r} | searched {} mount(s) | {:.1f} ms",
-                           rel, len(MOUNTS), elapsed_ms)
-            return JSONResponse(status_code=404, content={"message": "Image not found"})
-        finally:
-            # ยกเลิก task ที่ยังค้าง (เช่น mount ช้าที่ไม่ต้องรอแล้ว)
-            for t in tasks:
-                if not t.done():
-                    t.cancel()
+            logger.debug("[{}] HIT | full_path={}", found_name, full_path)
+            logger.info("200 OK | mount={} | rel={!r} | {:.1f} ms",
+                        found_name, rel, elapsed_ms)
+            return FileResponse(full_path, headers=_CACHE_HEADERS)
+
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.warning("404 Not Found | rel={!r} | searched {} mount(s) | {:.1f} ms",
+                       rel, len(MOUNTS), elapsed_ms)
+        return JSONResponse(status_code=404, content={"message": "Image not found"})
 
     except ValueError:
         logger.warning("400 Bad Request | invalid path | raw_path={!r}", file_path)
@@ -284,15 +290,45 @@ if __name__ == "__main__":
     mp.freeze_support()  # ปลอดภัยกับ .exe (frozen build)
 
     port = int(config.get("Port_Server", 8080))
-    # process เดียวเสมอ: เป็นวิธีเดียวที่ .exe ตัวเดียวเสิร์ฟ port เดียวบน Windows ได้แน่นอน
-    # (Windows แชร์ listening socket ข้าม process ไม่ได้ -> WinError 87)
-    # ต้องการ multi-core: รันหลาย instance คนละ port แล้ววาง reverse proxy (IIS/nginx) ข้างหน้า
-    logger.info("Starting | single-process | {} I/O threads | port={}", IO_THREADS, port)
-    uvicorn.run(
-        app,
+    log_level = config.get("log_Level", "info").lower()
+    frozen = getattr(sys, "frozen", False)
+
+    # พารามิเตอร์ที่ใช้ร่วมกันทั้งสองโหมด
+    common = dict(
         host="0.0.0.0",
         port=port,
         log_config=None,
-        access_log=False,  # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
-        log_level=config.get("log_Level", "info").lower(),
+        access_log=False,       # เก็บ log เองใน endpoint แล้ว ไม่ต้องให้ uvicorn log ซ้ำทุก request
+        log_level=log_level,
+        backlog=4096,           # คิว accept ของ socket (default 2048 อาจล้นช่วงพีค -> client โดน refused)
+        timeout_keep_alive=15,  # คง connection ไว้ reuse (เลี่ยง TCP handshake ทุกคำขอ)
     )
+
+    if frozen:
+        # ----- โหมด .exe (Windows): process เดียวเสมอ -----
+        # เป็นวิธีเดียวที่ .exe ตัวเดียวเสิร์ฟ port เดียวบน Windows ได้แน่นอน
+        # (Windows แชร์ listening socket ข้าม process ไม่ได้ -> WinError 87)
+        # ต้องการ multi-core บน Windows: รันหลาย instance คนละ port + reverse proxy (IIS/nginx)
+        logger.info("Starting | frozen single-process | {} I/O threads | port={}", IO_THREADS, port)
+        uvicorn.run(app, **common)
+    else:
+        # ----- โหมด script ปกติ (Linux/Docker): ใช้ได้หลาย core -----
+        # workers>1 -> uvloop + httptools (auto ถ้าติดตั้ง uvicorn[standard]) + แชร์ socket ผ่าน
+        # supervisor ของ uvicorn เอง (บน Linux ใช้ SO_REUSEPORT ได้ ไม่ติดข้อจำกัด Windows)
+        try:
+            workers = int(config.get("Workers", 0))
+        except (TypeError, ValueError):
+            workers = 0
+        if workers <= 0:
+            workers = os.cpu_count() or 1
+
+        if workers > 1:
+            logger.info("Starting | {} workers (multi-core) | {} I/O threads/worker | port={}",
+                        workers, IO_THREADS, port)
+            # ต้องส่ง app เป็น import-string เพื่อให้ uvicorn spawn worker แล้ว re-import ได้
+            uvicorn.run("HTTP_Image_Server:app", workers=workers,
+                        loop="auto", http="auto", **common)
+        else:
+            logger.info("Starting | single-process (non-frozen) | {} I/O threads | port={}",
+                        IO_THREADS, port)
+            uvicorn.run(app, loop="auto", http="auto", **common)

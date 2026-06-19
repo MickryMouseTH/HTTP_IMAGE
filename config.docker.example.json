@@ -1,0 +1,26 @@
+{
+    "_comment": "คัดลอกเป็น config.docker.json แล้วใส่ค่าจริง (ไฟล์จริงถูก gitignore ไว้). smb ใส่แบบ Windows UNC ได้เลย entrypoint แปลงให้",
+
+    "Mapdrive": [
+        { "name": "DC",      "path": "/mnt/DC",      "smb": "\\\\SERVER1\\image\\" },
+        { "name": "DR",      "path": "/mnt/DR",      "smb": "\\\\SERVER2\\image\\" },
+        { "name": "BK-NAS", "path": "/mnt/BK_NAS", "smb": "\\\\NAS\\Share\\image\\" }
+    ],
+    "Smb_Domain": "YOURDOMAIN",
+    "Smb_User": "readonly_user",
+    "Smb_Pass": "change_me",
+    "Smb_Options": "vers=3.1.1,sec=ntlmssp,cache=loose,actimeo=600,rsize=4194304,wsize=4194304",
+
+    "Port_Server": 8080,
+    "Max_Workers": 128,
+    "Workers": 4,
+
+    "Cache_Max_Age": 31536000,
+    "Cache_Immutable": 1,
+
+    "log_Level": "INFO",
+    "Log_Console": 0,
+    "Log_File": 1,
+    "log_Backup": 90,
+    "Log_Size": "10 MB"
+}

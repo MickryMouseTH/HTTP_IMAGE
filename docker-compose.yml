@@ -1,0 +1,43 @@
+# HTTP-Image-Server v2.6 — Ubuntu/Docker, ต้นทางเป็น Windows SMB share
+#
+# *** config ที่เดียว: แก้ทุกอย่างใน config.docker.json ***
+#   (share, user/pass, path, workers, cache, log) — ไม่ต้องแตะไฟล์นี้หรือ .env อีก
+#
+# สถาปัตยกรรม:
+#   client -> nginx (proxy_cache บน RAM) -> app (uvicorn uvloop x N workers) -> CIFS -> Windows share
+#   cache HIT = ตอบจาก RAM ไม่แตะ app/SMB   |   cache MISS = วิ่งเข้า app ครั้งเดียว/ไฟล์
+#
+# entrypoint ของ app อ่าน config.docker.json แล้ว mount SMB ให้เอง -> จึงต้องการ cap SYS_ADMIN
+
+services:
+  app:
+    build: .
+    # ต้องใช้สิทธิ์นี้เพื่อให้ container mount CIFS เองจาก config ได้
+    # mount.cifs ต้องการทั้ง SYS_ADMIN (สั่ง mount) และ DAC_READ_SEARCH (จัดการ capability set)
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      # config ไฟล์เดียว — rw เพราะรันครั้งแรกจะ "เข้ารหัส Smb_Pass เขียนกลับ" (plaintext -> enc:)
+      - ./config.docker.json:/app/HTTP-Image-Server_config.json
+      # คีย์ถอดรหัส (สร้างครั้งแรก, mode 600) — ต้อง persist & อย่าลบ/อย่า commit ไม่งั้นถอดรหัสไม่ได้
+      - ./secret:/app/secret
+      - ./logs:/app/logs
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - app
+    ports:
+      - "80:80"        # host:80 -> nginx:80 (ถ้าพอร์ต 80 ชน container อื่น เปลี่ยนซ้ายเป็น 8080 ได้)
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    # cache เก็บใน tmpfs (RAM) -> cache hit ตอบจาก RAM เร็วสุด; ปรับ size ตามรูปที่ต้องการ cache
+    tmpfs:
+      - /var/cache/nginx:size=4g
+    restart: unless-stopped

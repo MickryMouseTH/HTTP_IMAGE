@@ -1,0 +1,11 @@
+# ไม่ต้องส่งเข้า build context (ลดขนาด + เลี่ยง permission denied ตอนอ่าน xattr ของ dir ที่ chown 1000)
+logs/
+secret/
+.git/
+__pycache__/
+*.pyc
+.env
+# ไฟล์เหล่านี้ map เข้าตอน runtime อยู่แล้ว ไม่ต้อง bake เข้า image
+config.docker.json
+HTTP-Image-Server_config.json
+CODE_REVIEW.md

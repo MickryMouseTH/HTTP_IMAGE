@@ -1,0 +1,6 @@
+fastapi>=0.111
+# uvicorn[standard] ดึง uvloop + httptools + websockets มาด้วย -> Linux ได้ event loop เร็วขึ้น 2-4x
+uvicorn[standard]>=0.30
+loguru>=0.7
+# เข้ารหัสรหัสผ่าน SMB ใน config (encrypt-on-first-run, Fernet)
+cryptography>=42

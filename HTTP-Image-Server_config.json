@@ -16,7 +16,7 @@
     "Port_Server": 8080,
     "Max_Workers": 64,
     "Cache_Max_Age": 3600,
-    "log_Level": "DEBUG",
+    "log_Level": "INFO",
     "Log_Console": 1,
     "log_Backup": 90,
     "Log_Size": "10 MB"

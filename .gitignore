@@ -1,2 +1,9 @@
 __pycache__/
 *.py[cod]
+.DS_Store
+.env
+logs/
+secret/
+cifs.key
+# config จริงมีบัญชี AD + enc:password -> ไม่ commit (ใช้ config.docker.example.json เป็น template)
+config.docker.json

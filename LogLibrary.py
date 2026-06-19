@@ -101,22 +101,25 @@ def Loguru_Logging(config, Program_Name, Program_Version):
 
     if config.get('Log_Console', 0) == 1:
         logger.add(
-            sys.stdout, 
-            level=log_Level, 
+            sys.stdout,
+            level=log_Level,
             format="<green>{time}</green> | <blue>{level}</blue> | <cyan>{thread.id}</cyan> | <magenta>{function}</magenta> | {message}"
         )
 
-    logger.add(
-        log_file,
-        format="{time} | {level} | {thread.id} | {function} | {message}",
-        level=log_Level,
-        rotation=Log_Size,
-        retention=f"{log_Backup} days",
-        compression="zip",
-        enqueue=True,   # คิวข้อความ + เขียนด้วย thread เดียว: ปลอดภัยกับ multi-process
-                        # และทำให้การหมุนไฟล์ (rotation) ตอนถึง Limit ไม่ชน file lock บน Windows
-        catch=True,     # ถ้า sink เกิด error (เช่น rotate/zip ล้มเหลว) ไม่ทำให้โปรแกรมล่ม
-    )
+    # Log_File=0 -> ไม่เขียนไฟล์ (ใช้กับ Docker หลาย worker: ให้ Docker เก็บ stdout แทน
+    # เลี่ยงหลาย process แย่งกันหมุน/บีบอัดไฟล์ log ตัวเดียวกัน). default = เขียนไฟล์ (1)
+    if int(config.get('Log_File', 1)) == 1:
+        logger.add(
+            log_file,
+            format="{time} | {level} | {thread.id} | {function} | {message}",
+            level=log_Level,
+            rotation=Log_Size,
+            retention=f"{log_Backup} days",
+            compression="zip",
+            enqueue=True,   # คิวข้อความ + เขียนด้วย thread เดียว: ปลอดภัยกับ multi-process
+                            # และทำให้การหมุนไฟล์ (rotation) ตอนถึง Limit ไม่ชน file lock บน Windows
+            catch=True,     # ถ้า sink เกิด error (เช่น rotate/zip ล้มเหลว) ไม่ทำให้โปรแกรมล่ม
+        )
 
     logger.info('-' * 117)
     logger.info(f"Start {Program_Name} Version {Program_Version}")

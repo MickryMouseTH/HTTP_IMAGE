@@ -43,7 +43,15 @@ default_config = {
 
 # ✅ Load_Config ของคุณต้องรับ 2 args
 config = Load_Config(default_config, Program_Name)
-logger = Loguru_Logging(config, Program_Name, Program_Version)
+
+# Multi-instance บน Windows: รันหลาย instance คนละ port (8080, 8081, ...) หน้า reverse proxy
+# (nginx) เพื่อใช้หลาย core — Windows แชร์ listening socket ข้าม process ไม่ได้ (WinError 87)
+# ตั้ง env `HTTP_IMAGE_PORT` ต่อ instance:
+#   - override port ที่ bind (ดูใน __main__)
+#   - แยกไฟล์ log ต่อ instance -> เลี่ยงหลาย process แย่งหมุน/zip ไฟล์ log ตัวเดียวกัน (WinError 32)
+_INSTANCE_PORT = os.environ.get("HTTP_IMAGE_PORT", "").strip()
+_log_tag = f"{Program_Version}_{_INSTANCE_PORT}" if _INSTANCE_PORT else Program_Version
+logger = Loguru_Logging(config, Program_Name, _log_tag)
 logger.debug("Loaded configuration: {}", config)
 
 # Max_Workers = จำนวน I/O thread (concurrency สำหรับงานที่ block: เช็คไฟล์ + อ่านไฟล์ส่งกลับ)
@@ -289,7 +297,8 @@ if __name__ == "__main__":
     import multiprocessing as mp
     mp.freeze_support()  # ปลอดภัยกับ .exe (frozen build)
 
-    port = int(config.get("Port_Server", 8080))
+    # env HTTP_IMAGE_PORT (ตั้งโดย start-cluster.bat ต่อ instance) ทับค่าใน config
+    port = int(_INSTANCE_PORT or config.get("Port_Server", 8080))
     log_level = config.get("log_Level", "info").lower()
     frozen = getattr(sys, "frozen", False)
 

@@ -4,7 +4,7 @@
 เวอร์ชันปัจจุบัน: **2.6**
 ไฟล์หลัก: `HTTP_Image_Server.py`, `LogLibrary.py`, `HTTP-Image-Server_config.json`
 ไฟล์ deploy (Linux/Docker): `config.docker.json` (**config ที่เดียว**), `entrypoint.sh`, `secret_util.py` (เข้ารหัส password), `server_launcher.py`, `Dockerfile`, `docker-compose.yml`, `nginx.conf`, `requirements.txt`, `.dockerignore`
-ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM)
+ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy)
 
 > เซิร์ฟเวอร์รูปภาพ: รับ path สัมพัทธ์ผ่าน `/image/{path}` แล้วค้นหาในหลาย mount
 > (local disk / network share UNC) ตามลำดับความสำคัญ แล้วส่งไฟล์แรกที่เจอกลับ
@@ -233,6 +233,23 @@ pyinstaller --onefile --console HTTP_Image_Server.py
 
 **ลำดับติดตั้งเป็น service:** ดาวน์โหลด `nssm.exe` วางในโฟลเดอร์โปรเจกต์ → รัน `start.bat` 1 ครั้ง
 (สร้าง venv) → ปิด → คลิกขวา `install-service.bat` → Run as administrator
+
+### Multi-core บน Windows — cluster หลาย instance + nginx
+process เดียวติด 1 core (ดูข้อ 3). ใช้หลาย core บน Windows ทำได้โดย **รันหลาย instance คนละ port
+แล้ววาง nginx ไว้หน้า** (Windows แชร์ listening socket ข้าม process ไม่ได้ → WinError 87):
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `start-cluster.bat` | รัน **8 instance** บนพอร์ต `8080`–`8087` แต่ละตัวคนละหน้าต่าง (แก้ `COUNT`/`BASE_PORT` ได้ในไฟล์) |
+| `stop-cluster.bat` | ปิดทั้ง cluster (kill ทุก port ในช่วง) |
+| `nginx.windows.conf` | nginx reverse proxy + cache โหลดบาลานซ์ (`least_conn`) ไป 8 instance, ฟัง port 80 |
+
+กลไก: env `HTTP_IMAGE_PORT` ที่ `start-cluster.bat` ตั้งต่อ instance จะ (1) override port ที่ bind และ
+(2) **แยกชื่อไฟล์ log ต่อ instance** (`HTTP-Image-Server_2.6_8081.log` …) เพื่อเลี่ยงหลาย process
+แย่งหมุน/zip ไฟล์ log ตัวเดียวกัน (บั๊ก WinError 32 ในข้อ 2.1)
+
+> ⚠️ nginx บน Windows ใช้ `select()` (~1024 conn/worker) throughput ไม่สูงเท่า Linux —
+> ถ้าต้องการ RPS สูงมากแนะนำใช้โหมด Linux/Docker (ข้อ 8) ซึ่งได้ uvloop + fork workers จริง
 
 ### "เรียกไม่เจอ" (404) — ไล่เช็คตามนี้
 1. **ดู log ตอน start** — ถ้าเห็น `Mount [X] NOT accessible` แปลว่า server เข้า share นั้นไม่ได้

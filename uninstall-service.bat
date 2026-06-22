@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================================
-REM  HTTP-Image-Server - ถอน Windows Service (ผ่าน NSSM)
-REM  - ต้องรันแบบ "Run as administrator"
+REM  HTTP-Image-Server - Uninstall the Windows Service (via NSSM)
+REM  - Must be run as administrator
 REM ============================================================================
 setlocal
 
@@ -9,16 +9,16 @@ cd /d "%~dp0"
 
 set "SVC_NAME=HTTP-Image-Server"
 
-REM ----- ตรวจสิทธิ์ administrator -----
+REM ----- Check administrator privileges -----
 net session >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] ต้องรันแบบ Run as administrator
-    echo         คลิกขวาที่ uninstall-service.bat -^> Run as administrator
+    echo [ERROR] Must be run as administrator
+    echo         Right-click uninstall-service.bat -^> Run as administrator
     pause
     exit /b 1
 )
 
-REM ----- หา nssm.exe -----
+REM ----- Locate nssm.exe -----
 set "NSSM="
 if exist "%~dp0nssm.exe" (
     set "NSSM=%~dp0nssm.exe"
@@ -27,27 +27,27 @@ if exist "%~dp0nssm.exe" (
     if %errorlevel%==0 set "NSSM=nssm"
 )
 if not defined NSSM (
-    echo [ERROR] ไม่พบ nssm.exe - วางไว้โฟลเดอร์นี้ หรือเพิ่มลง PATH
+    echo [ERROR] nssm.exe not found - place it in this folder or add it to PATH
     pause
     exit /b 1
 )
 
 sc query "%SVC_NAME%" >nul 2>nul
 if not %errorlevel%==0 (
-    echo [INFO] ไม่พบ service "%SVC_NAME%" ^(อาจถอนไปแล้ว^)
+    echo [INFO] Service "%SVC_NAME%" not found ^(may already be removed^)
     pause
     exit /b 0
 )
 
-echo [STOP] หยุด service "%SVC_NAME%" ...
+echo [STOP] Stopping service "%SVC_NAME%" ...
 "%NSSM%" stop "%SVC_NAME%" >nul 2>nul
 
-echo [REMOVE] ถอน service "%SVC_NAME%" ...
+echo [REMOVE] Removing service "%SVC_NAME%" ...
 "%NSSM%" remove "%SVC_NAME%" confirm
 if errorlevel 1 (
-    echo [WARN] ถอน service ไม่สำเร็จ
+    echo [WARN] Failed to remove service
 ) else (
-    echo [OK] ถอน service "%SVC_NAME%" เรียบร้อย
+    echo [OK] Service "%SVC_NAME%" removed
 )
 
 echo.

@@ -1,14 +1,14 @@
 @echo off
 REM ============================================================================
-REM  HTTP-Image-Server - ติดตั้งเป็น Windows Service (ผ่าน NSSM)
-REM  - รันอัตโนมัติตอนเปิดเครื่อง + รีสตาร์ทเองถ้าครैช
-REM  - ต้องรันแบบ "Run as administrator"
+REM  HTTP-Image-Server - Install as a Windows Service (via NSSM)
+REM  - Auto-start on boot + auto-restart on crash
+REM  - Must be run as administrator
 REM
-REM  เตรียมก่อนรัน:
-REM    1) ติดตั้ง dependencies ให้เสร็จก่อน (ดับเบิลคลิก start.bat 1 ครั้ง
-REM       เพื่อให้สร้าง .venv + ติดตั้ง requirements) แล้วปิดด้วย stop.bat
-REM    2) มี nssm.exe — วางไว้โฟลเดอร์เดียวกับ .bat นี้ หรืออยู่ใน PATH
-REM       ดาวน์โหลด: https://nssm.cc/download
+REM  Before running:
+REM    1) Install dependencies first (double-click start.bat once to create
+REM       .venv + install requirements), then stop it with stop.bat
+REM    2) Provide nssm.exe - place it next to this .bat or have it on PATH
+REM       Download: https://nssm.cc/download
 REM ============================================================================
 setlocal
 
@@ -16,16 +16,16 @@ cd /d "%~dp0"
 
 set "SVC_NAME=HTTP-Image-Server"
 
-REM ----- ตรวจสิทธิ์ administrator -----
+REM ----- Check administrator privileges -----
 net session >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] ต้องรันแบบ Run as administrator
-    echo         คลิกขวาที่ install-service.bat -^> Run as administrator
+    echo [ERROR] Must be run as administrator
+    echo         Right-click install-service.bat -^> Run as administrator
     pause
     exit /b 1
 )
 
-REM ----- หา nssm.exe -----
+REM ----- Locate nssm.exe -----
 set "NSSM="
 if exist "%~dp0nssm.exe" (
     set "NSSM=%~dp0nssm.exe"
@@ -34,53 +34,53 @@ if exist "%~dp0nssm.exe" (
     if %errorlevel%==0 set "NSSM=nssm"
 )
 if not defined NSSM (
-    echo [ERROR] ไม่พบ nssm.exe - วางไว้โฟลเดอร์นี้ หรือเพิ่มลง PATH
-    echo         ดาวน์โหลด: https://nssm.cc/download
+    echo [ERROR] nssm.exe not found - place it in this folder or add it to PATH
+    echo         Download: https://nssm.cc/download
     pause
     exit /b 1
 )
 
-REM ----- ตรวจ venv (ต้องรัน start.bat ก่อนเพื่อสร้าง) -----
+REM ----- Check venv (run start.bat first to create it) -----
 set "PYEXE=%~dp0.venv\Scripts\python.exe"
 if not exist "%PYEXE%" (
-    echo [ERROR] ไม่พบ .venv\Scripts\python.exe
-    echo         รัน start.bat 1 ครั้งก่อน เพื่อสร้าง venv + ติดตั้ง dependencies
+    echo [ERROR] .venv\Scripts\python.exe not found
+    echo         Run start.bat once first to create the venv + install dependencies
     pause
     exit /b 1
 )
 
-REM ----- ถ้า service มีอยู่แล้ว ลบของเก่าทิ้งก่อน -----
+REM ----- If the service already exists, remove the old one first -----
 sc query "%SVC_NAME%" >nul 2>nul
 if %errorlevel%==0 (
-    echo [INFO] พบ service เดิม - หยุดและลบก่อนติดตั้งใหม่ ...
+    echo [INFO] Existing service found - stopping and removing before reinstall ...
     "%NSSM%" stop "%SVC_NAME%" >nul 2>nul
     "%NSSM%" remove "%SVC_NAME%" confirm >nul 2>nul
 )
 
-echo [INSTALL] กำลังติดตั้ง service "%SVC_NAME%" ...
+echo [INSTALL] Installing service "%SVC_NAME%" ...
 "%NSSM%" install "%SVC_NAME%" "%PYEXE%" "HTTP_Image_Server.py"
 "%NSSM%" set "%SVC_NAME%" AppDirectory "%~dp0"
 "%NSSM%" set "%SVC_NAME%" DisplayName "HTTP Image Server"
 "%NSSM%" set "%SVC_NAME%" Description "HTTP-Image-Server (single-process, FastAPI/uvicorn)"
 "%NSSM%" set "%SVC_NAME%" Start SERVICE_AUTO_START
 
-REM เก็บ stdout/stderr ลงไฟล์ (เผื่อ debug นอกเหนือจาก log ของแอป)
+REM Capture stdout/stderr to files (for debugging on top of the app log)
 "%NSSM%" set "%SVC_NAME%" AppStdout "%~dp0logs\service-stdout.log"
 "%NSSM%" set "%SVC_NAME%" AppStderr "%~dp0logs\service-stderr.log"
-REM หมุนไฟล์ stdout/stderr เมื่อใหญ่เกิน ~10MB
+REM Rotate stdout/stderr files when larger than ~10MB
 "%NSSM%" set "%SVC_NAME%" AppRotateFiles 1
 "%NSSM%" set "%SVC_NAME%" AppRotateBytes 10485760
 
-REM ครैชแล้วให้ NSSM รีสตาร์ทเอง (ดีเลย์ 3 วินาที)
+REM On crash, let NSSM restart it (3 second delay)
 "%NSSM%" set "%SVC_NAME%" AppExit Default Restart
 "%NSSM%" set "%SVC_NAME%" AppRestartDelay 3000
 
-echo [START] กำลังสตาร์ท service ...
+echo [START] Starting service ...
 "%NSSM%" start "%SVC_NAME%"
 if errorlevel 1 (
-    echo [WARN] สตาร์ทไม่สำเร็จ - ตรวจ logs\service-stderr.log
+    echo [WARN] Failed to start - check logs\service-stderr.log
 ) else (
-    echo [OK] ติดตั้ง + สตาร์ท service "%SVC_NAME%" เรียบร้อย ^(auto-start ตอนเปิดเครื่อง^)
+    echo [OK] Service "%SVC_NAME%" installed and started ^(auto-start on boot^)
 )
 
 echo.

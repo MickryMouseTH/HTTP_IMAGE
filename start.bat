@@ -11,20 +11,25 @@ setlocal
 REM Move to the folder where this .bat lives (run from anywhere)
 cd /d "%~dp0"
 
-REM ----- Locate Python -----
-where py >nul 2>nul
-if %errorlevel%==0 (
-    set "PY=py -3"
-) else (
-    where python >nul 2>nul
-    if %errorlevel%==0 (
-        set "PY=python"
-    ) else (
-        echo [ERROR] Python not found - install from https://www.python.org/downloads/ ^(check "Add to PATH"^)
-        pause
-        exit /b 1
+REM ----- Locate a WORKING Python -----
+REM Try each candidate by actually running it (a present `py` launcher with no
+REM installed Python prints "No installed Python found!", so a where/exists
+REM check is not enough - we verify --version succeeds).
+set "PY="
+for %%C in ("py -3" "python" "python3") do (
+    if not defined PY (
+        %%~C --version >nul 2>nul && set "PY=%%~C"
     )
 )
+if not defined PY (
+    echo [ERROR] No working Python found.
+    echo         The `py` launcher may exist but no Python is installed.
+    echo         Install Python from https://www.python.org/downloads/ ^(check "Add to PATH"^),
+    echo         then run start.bat again.
+    pause
+    exit /b 1
+)
+echo [SETUP] Using Python: %PY%
 
 REM ----- Create virtual env on first run -----
 if not exist ".venv\Scripts\python.exe" (

@@ -4,7 +4,7 @@
 เวอร์ชันปัจจุบัน: **2.6**
 ไฟล์หลัก: `HTTP_Image_Server.py`, `LogLibrary.py`, `HTTP-Image-Server_config.json`
 ไฟล์ deploy (Linux/Docker): `config.docker.json` (**config ที่เดียว**), `entrypoint.sh`, `secret_util.py` (เข้ารหัส password), `server_launcher.py`, `Dockerfile`, `docker-compose.yml`, `nginx.conf`, `requirements.txt`, `.dockerignore`
-ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy)
+ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy), `install-cluster-service.bat`/`uninstall-cluster-service.bat` (ติดตั้งทั้ง cluster + nginx เป็น service คำสั่งเดียว)
 
 > เซิร์ฟเวอร์รูปภาพ: รับ path สัมพัทธ์ผ่าน `/image/{path}` แล้วค้นหาในหลาย mount
 > (local disk / network share UNC) ตามลำดับความสำคัญ แล้วส่งไฟล์แรกที่เจอกลับ
@@ -243,6 +243,15 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
 | `start-cluster.bat` | รัน **8 instance** บนพอร์ต `8080`–`8087` แต่ละตัวคนละหน้าต่าง (แก้ `COUNT`/`BASE_PORT` ได้ในไฟล์) |
 | `stop-cluster.bat` | ปิดทั้ง cluster (kill ทุก port ในช่วง) |
 | `nginx.windows.conf` | nginx reverse proxy + cache โหลดบาลานซ์ (`least_conn`) ไป 8 instance, ฟัง port 80 |
+| `install-cluster-service.bat` | **คำสั่งเดียวจบ** — ติดตั้งทั้ง 8 instance **+ nginx** เป็น Windows Service (auto-start ตอนบูต + auto-restart), copy `nginx.windows.conf` เข้า `%NGINX_DIR%\conf\nginx.conf` ให้เอง (Run as administrator) |
+| `uninstall-cluster-service.bat` | ถอนทั้ง cluster (8 instance + nginx) ทีเดียว |
+
+**ติดตั้งเป็น service ทั้ง cluster (วิธีที่แนะนำสำหรับ prod):**
+1. `start.bat` 1 ครั้ง (สร้าง venv) → ปิด
+2. วาง `nssm.exe` ในโฟลเดอร์โปรเจกต์ + แตก nginx for Windows ไว้ที่ `C:\nginx` (แก้ `NGINX_DIR` ในไฟล์ได้)
+3. คลิกขวา `install-cluster-service.bat` → **Run as administrator** — จบในคำสั่งเดียว
+   ทั้ง 8 instance + nginx จะรันเองทุกครั้งที่เปิดเครื่อง
+   *(แต่ละ instance ตั้ง `HTTP_IMAGE_PORT` ผ่าน NSSM `AppEnvironmentExtra` → คนละ port + คนละไฟล์ log)*
 
 กลไก: env `HTTP_IMAGE_PORT` ที่ `start-cluster.bat` ตั้งต่อ instance จะ (1) override port ที่ bind และ
 (2) **แยกชื่อไฟล์ log ต่อ instance** (`HTTP-Image-Server_2.6_8081.log` …) เพื่อเลี่ยงหลาย process

@@ -4,7 +4,7 @@
 เวอร์ชันปัจจุบัน: **2.6**
 ไฟล์หลัก: `HTTP_Image_Server.py`, `LogLibrary.py`, `HTTP-Image-Server_config.json`
 ไฟล์ deploy (Linux/Docker): `config.docker.json` (**config ที่เดียว**), `entrypoint.sh`, `secret_util.py` (เข้ารหัส password), `server_launcher.py`, `Dockerfile`, `docker-compose.yml`, `nginx.conf`, `requirements.txt`, `.dockerignore`
-ไฟล์รัน (Windows): `setup.bat` (สร้าง venv), `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy), `install-cluster-service.bat`/`uninstall-cluster-service.bat` (ติดตั้งทั้ง cluster + nginx เป็น service คำสั่งเดียว)
+ไฟล์รัน (Windows): `setup.bat` (สร้าง venv), `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy), `install-cluster-service.bat`/`uninstall-cluster-service.bat` (ติดตั้งทั้ง cluster + nginx เป็น service คำสั่งเดียว), `server_launcher_win.py` + `build-exe.bat` (**.exe เดียว multi-worker + log ไฟล์เดียวผ่าน queue**)
 
 > เซิร์ฟเวอร์รูปภาพ: รับ path สัมพัทธ์ผ่าน `/image/{path}` แล้วค้นหาในหลาย mount
 > (local disk / network share UNC) ตามลำดับความสำคัญ แล้วส่งไฟล์แรกที่เจอกลับ
@@ -259,6 +259,29 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
 
 > ⚠️ nginx บน Windows ใช้ `select()` (~1024 conn/worker) throughput ไม่สูงเท่า Linux —
 > ถ้าต้องการ RPS สูงมากแนะนำใช้โหมด Linux/Docker (ข้อ 8) ซึ่งได้ uvloop + fork workers จริง
+
+### .exe เดียว multi-worker + log "ไฟล์เดียว" ผ่าน queue  *(`server_launcher_win.py`)*
+ถ้าอยากได้ **.exe ตัวเดียว** ที่รันหลาย worker เอง (แทนการรันหลาย instance ด้วย .bat) และ
+**log รวมไฟล์เดียว** — ใช้ `server_launcher_win.py` build เป็น .exe ด้วย `build-exe.bat`
+
+โครงสร้าง (เหมือน `server_launcher.py` ของ Linux แต่ทำงานบน Windows .exe ได้):
+- `.exe` เป็น **parent** → `spawn` worker process N ตัว (คนละ port `Worker_Base_Port`, +1, …)
+  *(Windows แชร์ socket ไม่ได้ → worker คนละ port + nginx 50000 ไว้หน้า เหมือน cluster)*
+- **log "ไฟล์เดียว" ผ่าน `multiprocessing.Queue` + thread เขียนตัวเดียวใน parent**:
+  worker ตั้ง env `HTTP_IMAGE_WORKER=1` → `HTTP_Image_Server` **ปิด sink ไฟล์/คอนโซลของตัวเอง**
+  (worker ไม่แตะไฟล์ log เลย) แล้วฟอร์แมตบรรทัดติด `W01`/`W02`… `put` เข้า queue →
+  parent thread เดียวดึงมาเขียนไฟล์เดียว (rotation/zip/retention โดย Loguru)
+
+> 🔑 **นี่คือทางแก้บั๊ก WinError 32 ตอน rotate โดยตรง** (ดูข้อ 2.1): มีแค่ **thread เดียวใน parent**
+> ที่ถือ handle ไฟล์ log → ตอนถึง `Log_Size` แล้วหมุน/zip จะไม่มี process อื่นถือ lock อยู่ →
+> ไม่เจอ `WinError 32` อีก. ต่างจาก multi-worker แบบเดิมที่ทุก process เปิดไฟล์เดียวกันค้างไว้
+
+build/รัน:
+```
+build-exe.bat                         → dist\HTTP-Image-Server\HTTP-Image-Server.exe (onedir)
+ตั้ง "Workers": 8 ใน config ข้าง .exe  → รัน .exe = spawn 8 worker (50001-50008) + log ไฟล์เดียว
+```
+*(build แบบ `--onedir` ไม่ใช่ `--onefile` เพราะ `multiprocessing` spawn เสถียรกว่ามากบน onedir)*
 
 ### "เรียกไม่เจอ" (404) — ไล่เช็คตามนี้
 1. **ดู log ตอน start** — ถ้าเห็น `Mount [X] NOT accessible` แปลว่า server เข้า share นั้นไม่ได้

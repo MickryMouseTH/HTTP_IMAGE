@@ -29,8 +29,12 @@ default_config = {
     ],
     "Port_Server": 8080,
     "Max_Workers": 64,           # จำนวน I/O thread ต่อ process. share ช้า/โหลดสูง -> เพิ่มเป็น 128-256
-    "Workers": 0,                # จำนวน process (multi-core) — ใช้เฉพาะตอน "ไม่ frozen" (Linux/Docker).
-                                 #   0 = auto = os.cpu_count(); .exe (frozen) จะบังคับ 1 process เสมอ
+    "Workers": 0,                # จำนวน process (multi-core). 0 = auto = os.cpu_count().
+                                 #   - รันเป็น .py ตรง ๆ (Linux/Docker): uvicorn workers
+                                 #   - .exe จาก server_launcher_win.py: จำนวน worker process ที่ spawn
+                                 #   - .exe จาก HTTP_Image_Server.py (frozen เดิม): บังคับ 1 process เสมอ
+    "Worker_Base_Port": 50001,   # .exe multi-worker: worker ตัวแรกใช้ port นี้ แล้วไล่ +1 (50001, 50002, ...)
+                                 #   วาง nginx (nginx.windows.conf, port 50000) ไว้หน้า cluster
     "Cache_Max_Age": 31536000,   # อายุ cache ของรูป (วินาที). รูป immutable -> ตั้งยาวได้ (1 ปี)
     "Cache_Immutable": 1,        # 1 = ใส่ directive `immutable` (client ไม่ revalidate เลย — รูปไม่เคยเปลี่ยน)
     "log_Level": "INFO",         # prod ใช้ INFO; DEBUG เฉพาะตอนไล่ปัญหา (DEBUG = ~6 บรรทัด/req กิน throughput)
@@ -51,7 +55,14 @@ config = Load_Config(default_config, Program_Name)
 #   - แยกไฟล์ log ต่อ instance -> เลี่ยงหลาย process แย่งหมุน/zip ไฟล์ log ตัวเดียวกัน (WinError 32)
 _INSTANCE_PORT = os.environ.get("HTTP_IMAGE_PORT", "").strip()
 _log_tag = f"{Program_Version}_{_INSTANCE_PORT}" if _INSTANCE_PORT else Program_Version
-logger = Loguru_Logging(config, Program_Name, _log_tag)
+
+# โหมด worker (ถูกสตาร์ทโดย server_launcher_win.py): ปิด sink อัตโนมัติของ LogLibrary
+# เพราะ launcher จะตั้ง sink ส่ง log เข้า "queue กลาง" แล้วให้ thread เดียวใน parent เขียนไฟล์เดียว
+# (กันหลาย process แย่งหมุน/zip ไฟล์ log ตัวเดียวกัน — WinError 32). ไม่แตะ config ตัวจริงของ module
+_log_cfg = config
+if os.environ.get("HTTP_IMAGE_WORKER") == "1":
+    _log_cfg = {**config, "Log_File": 0, "Log_Console": 0}
+logger = Loguru_Logging(_log_cfg, Program_Name, _log_tag)
 logger.debug("Loaded configuration: {}", config)
 
 # Max_Workers = จำนวน I/O thread (concurrency สำหรับงานที่ block: เช็คไฟล์ + อ่านไฟล์ส่งกลับ)

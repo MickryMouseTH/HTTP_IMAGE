@@ -14,6 +14,7 @@
         }
     ],
     "Port_Server": 8080,
+    "Workers": 1,
     "Max_Workers": 64,
     "Cache_Max_Age": 3600,
     "log_Level": "INFO",

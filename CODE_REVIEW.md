@@ -4,6 +4,7 @@
 เวอร์ชันปัจจุบัน: **2.6**
 ไฟล์หลัก: `HTTP_Image_Server.py`, `LogLibrary.py`, `HTTP-Image-Server_config.json`
 ไฟล์ deploy (Linux/Docker): `config.docker.json` (**config ที่เดียว**), `entrypoint.sh`, `secret_util.py` (เข้ารหัส password), `server_launcher.py`, `Dockerfile`, `docker-compose.yml`, `nginx.conf`, `requirements.txt`, `.dockerignore`
+ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM)
 
 > เซิร์ฟเวอร์รูปภาพ: รับ path สัมพัทธ์ผ่าน `/image/{path}` แล้วค้นหาในหลาย mount
 > (local disk / network share UNC) ตามลำดับความสำคัญ แล้วส่งไฟล์แรกที่เจอกลับ
@@ -215,6 +216,24 @@ pyinstaller --onefile --console HTTP_Image_Server.py
 ```
 วาง `HTTP-Image-Server_config.json` ไว้ข้าง .exe (โปรแกรมอ่าน config/เขียน logs ข้างไฟล์ที่รัน)
 
+### รันบน Windows ด้วย Python script (ไม่ต้อง build .exe) — `.bat`
+เหมาะกับเครื่องที่มี Python อยู่แล้ว ไม่อยาก build .exe ทุกครั้งที่แก้โค้ด มีสคริปต์ให้ 4 ตัว:
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `start.bat` | ครั้งแรกสร้าง `.venv` + `pip install -r requirements.txt` ให้เอง แล้วรัน `HTTP_Image_Server.py` แบบ **single-process** (ดับเบิลคลิกได้เลย) |
+| `stop.bat` | อ่าน `Port_Server` จาก config แล้ว `taskkill` process ที่ฟังอยู่บน port นั้น |
+| `install-service.bat` | ติดตั้งเป็น **Windows Service** ผ่าน [NSSM](https://nssm.cc/download) — auto-start ตอนเปิดเครื่อง + รีสตาร์ทเองถ้าครैช (ต้อง Run as administrator) |
+| `uninstall-service.bat` | หยุด + ถอน service (ต้อง Run as administrator) |
+
+> ⚠️ **สำคัญ:** ตอนรันเป็น Python script (ไม่ frozen) ถ้า `Workers` ไม่ถูกตั้ง จะ default = `0` =
+> auto = `cpu_count()` → เข้าโหมด multi-worker ที่ **พังบน Windows** (แชร์ socket ไม่ได้, WinError 87)
+> จึงตั้ง **`"Workers": 1`** ไว้ใน `HTTP-Image-Server_config.json` เพื่อบังคับ single-process
+> *(โหมด `.exe` frozen บังคับ 1 process อยู่แล้วเสมอ — ไม่เกี่ยวกับค่านี้)*
+
+**ลำดับติดตั้งเป็น service:** ดาวน์โหลด `nssm.exe` วางในโฟลเดอร์โปรเจกต์ → รัน `start.bat` 1 ครั้ง
+(สร้าง venv) → ปิด → คลิกขวา `install-service.bat` → Run as administrator
+
 ### "เรียกไม่เจอ" (404) — ไล่เช็คตามนี้
 1. **ดู log ตอน start** — ถ้าเห็น `Mount [X] NOT accessible` แปลว่า server เข้า share นั้นไม่ได้
    (network ล่ม / path ผิด / account ที่รันไม่มีสิทธิ์เข้า SMB share)
@@ -241,7 +260,7 @@ pyinstaller --onefile --console HTTP_Image_Server.py
 | 2.3 | ลอง multi-process แชร์ socket *(ใช้ได้ Linux/Mac แต่ Windows ไม่ได้ — ถอยใน 2.4)* |
 | 2.4 | กลับเป็น single-process (Windows แชร์ socket ไม่ได้), `Max_Workers` = I/O thread |
 | 2.5 | ค้น mount เป็น 1 เธรด/คำขอ (early-exit, ลด dispatch จาก N→1), ตัด abspath ซ้ำ, default log = INFO, ตั้ง `backlog=4096` + `timeout_keep_alive=15`, ตอบคำถามรองรับ 3000–4000 req/s |
-| **2.6** | **โหมด Linux/Docker** (เน้นใช้งานหลัก): `server_launcher.py` (fork หลาย worker แชร์ socket = multi-core) + uvloop + httptools, **log "ไฟล์เดียว" ผ่าน queue (writer ใน parent) แม้หลาย worker**, **config ที่เดียว** (`config.docker.json`) + `entrypoint.sh` mount SMB เอง (แปลง UNC `\\..\` → `//..` อัตโนมัติ) **รองรับ AD domain**, **เข้ารหัส password encrypt-on-first-run** (`secret_util.py`, Fernet), รันเป็น root + `cap SYS_ADMIN`/`DAC_READ_SEARCH`, nginx cache, `immutable` Cache-Control — *ทดสอบจริงกับ Windows SMB share ผ่านครบ (mount + ดึง .jpg + cache HIT + seal)* |
+| **2.6** | **โหมด Linux/Docker** (เน้นใช้งานหลัก): `server_launcher.py` (fork หลาย worker แชร์ socket = multi-core) + uvloop + httptools, **log "ไฟล์เดียว" ผ่าน queue (writer ใน parent) แม้หลาย worker**, **config ที่เดียว** (`config.docker.json`) + `entrypoint.sh` mount SMB เอง (แปลง UNC `\\..\` → `//..` อัตโนมัติ) **รองรับ AD domain**, **เข้ารหัส password encrypt-on-first-run** (`secret_util.py`, Fernet), รันเป็น root + `cap SYS_ADMIN`/`DAC_READ_SEARCH`, nginx cache, `immutable` Cache-Control — *ทดสอบจริงกับ Windows SMB share ผ่านครบ (mount + ดึง .jpg + cache HIT + seal)*<br>**ฝั่ง Windows:** เพิ่ม `.bat` รันเป็น script ไม่ต้อง build .exe (`start.bat`/`stop.bat`) + ติดตั้งเป็น service ผ่าน NSSM (`install-service.bat`/`uninstall-service.bat`), ตั้ง `"Workers": 1` บังคับ single-process ตอนรัน non-frozen |
 
 ### ✅ จุดที่ดีอยู่แล้วในโค้ด
 - กัน path traversal ครบ 2 ชั้น (`commonpath`)

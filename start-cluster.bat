@@ -14,7 +14,7 @@ setlocal
 cd /d "%~dp0"
 
 REM ----- Tunables -----
-set "BASE_PORT=8080"
+set "BASE_PORT=50001"
 set "COUNT=8"
 
 REM Ensure venv exists (setup.bat creates it on first run)

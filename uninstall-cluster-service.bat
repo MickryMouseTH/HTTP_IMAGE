@@ -10,7 +10,7 @@ cd /d "%~dp0"
 
 set "SVC_PREFIX=HTTP-Image-Server"
 set "NGSVC=HTTP-Image-nginx"
-set "BASE_PORT=8080"
+set "BASE_PORT=50001"
 set "COUNT=8"
 
 REM ----- Admin check -----

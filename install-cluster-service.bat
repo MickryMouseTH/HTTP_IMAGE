@@ -18,7 +18,7 @@ cd /d "%~dp0"
 REM ----- Tunables -----
 set "SVC_PREFIX=HTTP-Image-Server"
 set "NGSVC=HTTP-Image-nginx"
-set "BASE_PORT=8080"
+set "BASE_PORT=50001"
 set "COUNT=8"
 set "NGINX_DIR=C:\nginx"
 

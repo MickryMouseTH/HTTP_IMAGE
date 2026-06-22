@@ -241,7 +241,7 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
 
 | ไฟล์ | หน้าที่ |
 |---|---|
-| `start-cluster.bat` | รัน **8 instance** บนพอร์ต `8080`–`8087` แต่ละตัวคนละหน้าต่าง (แก้ `COUNT`/`BASE_PORT` ได้ในไฟล์) |
+| `start-cluster.bat` | รัน **8 instance** บนพอร์ต `50001`–`50008` แต่ละตัวคนละหน้าต่าง (แก้ `COUNT`/`BASE_PORT` ได้ในไฟล์) |
 | `stop-cluster.bat` | ปิดทั้ง cluster (kill ทุก port ในช่วง) |
 | `nginx.windows.conf` | nginx reverse proxy + cache โหลดบาลานซ์ (`least_conn`) ไป 8 instance, ฟัง **port 50000** |
 | `install-cluster-service.bat` | **คำสั่งเดียวจบ** — ติดตั้งทั้ง 8 instance **+ nginx** เป็น Windows Service (auto-start ตอนบูต + auto-restart), copy `nginx.windows.conf` เข้า `%NGINX_DIR%\conf\nginx.conf` ให้เอง (Run as administrator) |
@@ -254,7 +254,7 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
    *(แต่ละ instance ตั้ง `HTTP_IMAGE_PORT` ผ่าน NSSM `AppEnvironmentExtra` → คนละ port + คนละไฟล์ log)*
 
 กลไก: env `HTTP_IMAGE_PORT` ที่ `start-cluster.bat` ตั้งต่อ instance จะ (1) override port ที่ bind และ
-(2) **แยกชื่อไฟล์ log ต่อ instance** (`HTTP-Image-Server_2.6_8081.log` …) เพื่อเลี่ยงหลาย process
+(2) **แยกชื่อไฟล์ log ต่อ instance** (`HTTP-Image-Server_2.6_50001.log` …) เพื่อเลี่ยงหลาย process
 แย่งหมุน/zip ไฟล์ log ตัวเดียวกัน (บั๊ก WinError 32 ในข้อ 2.1)
 
 > ⚠️ nginx บน Windows ใช้ `select()` (~1024 conn/worker) throughput ไม่สูงเท่า Linux —

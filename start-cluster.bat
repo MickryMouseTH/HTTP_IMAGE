@@ -17,13 +17,13 @@ REM ----- Tunables -----
 set "BASE_PORT=8080"
 set "COUNT=8"
 
-set "PYEXE=%~dp0.venv\Scripts\python.exe"
-if not exist "%PYEXE%" (
-    echo [ERROR] .venv\Scripts\python.exe not found
-    echo         Run start.bat once first to create the venv + install dependencies.
+REM Ensure venv exists (setup.bat creates it on first run)
+call "%~dp0setup.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
+set "PYEXE=%~dp0.venv\Scripts\python.exe"
 
 echo [CLUSTER] Starting %COUNT% instances from port %BASE_PORT% ...
 set /a "LAST=COUNT-1"

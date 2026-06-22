@@ -4,7 +4,7 @@
 เวอร์ชันปัจจุบัน: **2.6**
 ไฟล์หลัก: `HTTP_Image_Server.py`, `LogLibrary.py`, `HTTP-Image-Server_config.json`
 ไฟล์ deploy (Linux/Docker): `config.docker.json` (**config ที่เดียว**), `entrypoint.sh`, `secret_util.py` (เข้ารหัส password), `server_launcher.py`, `Dockerfile`, `docker-compose.yml`, `nginx.conf`, `requirements.txt`, `.dockerignore`
-ไฟล์รัน (Windows): `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy), `install-cluster-service.bat`/`uninstall-cluster-service.bat` (ติดตั้งทั้ง cluster + nginx เป็น service คำสั่งเดียว)
+ไฟล์รัน (Windows): `setup.bat` (สร้าง venv), `start.bat`, `stop.bat`, `install-service.bat`, `uninstall-service.bat` (รันเป็น service ผ่าน NSSM), `start-cluster.bat`/`stop-cluster.bat` + `nginx.windows.conf` (multi-instance 8 ตัว + reverse proxy), `install-cluster-service.bat`/`uninstall-cluster-service.bat` (ติดตั้งทั้ง cluster + nginx เป็น service คำสั่งเดียว)
 
 > เซิร์ฟเวอร์รูปภาพ: รับ path สัมพัทธ์ผ่าน `/image/{path}` แล้วค้นหาในหลาย mount
 > (local disk / network share UNC) ตามลำดับความสำคัญ แล้วส่งไฟล์แรกที่เจอกลับ
@@ -221,7 +221,8 @@ pyinstaller --onefile --console HTTP_Image_Server.py
 
 | ไฟล์ | หน้าที่ |
 |---|---|
-| `start.bat` | ครั้งแรกสร้าง `.venv` + `pip install -r requirements.txt` ให้เอง แล้วรัน `HTTP_Image_Server.py` แบบ **single-process** (ดับเบิลคลิกได้เลย) |
+| `setup.bat` | สร้าง `.venv` + `pip install -r requirements.txt` (หา Python จาก PATH หรือ Miniforge/conda) — ไฟล์อื่นเรียกใช้อัตโนมัติถ้ายังไม่มี venv ไม่ต้องรันเองก็ได้ |
+| `start.bat` | รัน `HTTP_Image_Server.py` แบบ **single-process** (ครั้งแรกเรียก `setup.bat` สร้าง venv ให้เอง — ดับเบิลคลิกได้เลย) |
 | `stop.bat` | อ่าน `Port_Server` จาก config แล้ว `taskkill` process ที่ฟังอยู่บน port นั้น |
 | `install-service.bat` | ติดตั้งเป็น **Windows Service** ผ่าน [NSSM](https://nssm.cc/download) — auto-start ตอนเปิดเครื่อง + รีสตาร์ทเองถ้าครैช (ต้อง Run as administrator) |
 | `uninstall-service.bat` | หยุด + ถอน service (ต้อง Run as administrator) |
@@ -231,8 +232,8 @@ pyinstaller --onefile --console HTTP_Image_Server.py
 > จึงตั้ง **`"Workers": 1`** ไว้ใน `HTTP-Image-Server_config.json` เพื่อบังคับ single-process
 > *(โหมด `.exe` frozen บังคับ 1 process อยู่แล้วเสมอ — ไม่เกี่ยวกับค่านี้)*
 
-**ลำดับติดตั้งเป็น service:** ดาวน์โหลด `nssm.exe` วางในโฟลเดอร์โปรเจกต์ → รัน `start.bat` 1 ครั้ง
-(สร้าง venv) → ปิด → คลิกขวา `install-service.bat` → Run as administrator
+**ลำดับติดตั้งเป็น service:** ดาวน์โหลด `nssm.exe` วางในโฟลเดอร์โปรเจกต์ → คลิกขวา
+`install-service.bat` → Run as administrator (สร้าง venv ให้เองผ่าน `setup.bat` ถ้ายังไม่มี)
 
 ### Multi-core บน Windows — cluster หลาย instance + nginx
 process เดียวติด 1 core (ดูข้อ 3). ใช้หลาย core บน Windows ทำได้โดย **รันหลาย instance คนละ port
@@ -247,10 +248,9 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
 | `uninstall-cluster-service.bat` | ถอนทั้ง cluster (8 instance + nginx) ทีเดียว |
 
 **ติดตั้งเป็น service ทั้ง cluster (วิธีที่แนะนำสำหรับ prod):**
-1. `start.bat` 1 ครั้ง (สร้าง venv) → ปิด
-2. วาง `nssm.exe` ในโฟลเดอร์โปรเจกต์ + แตก nginx for Windows ไว้ที่ `C:\nginx` (แก้ `NGINX_DIR` ในไฟล์ได้)
-3. คลิกขวา `install-cluster-service.bat` → **Run as administrator** — จบในคำสั่งเดียว
-   ทั้ง 8 instance + nginx จะรันเองทุกครั้งที่เปิดเครื่อง
+1. วาง `nssm.exe` ในโฟลเดอร์โปรเจกต์ + แตก nginx for Windows ไว้ที่ `C:\nginx` (แก้ `NGINX_DIR` ในไฟล์ได้)
+2. คลิกขวา `install-cluster-service.bat` → **Run as administrator** — จบในคำสั่งเดียว
+   (สร้าง `.venv` ให้เองผ่าน `setup.bat` ถ้ายังไม่มี) ทั้ง 8 instance + nginx จะรันเองทุกครั้งที่เปิดเครื่อง
    *(แต่ละ instance ตั้ง `HTTP_IMAGE_PORT` ผ่าน NSSM `AppEnvironmentExtra` → คนละ port + คนละไฟล์ log)*
 
 กลไก: env `HTTP_IMAGE_PORT` ที่ `start-cluster.bat` ตั้งต่อ instance จะ (1) override port ที่ bind และ

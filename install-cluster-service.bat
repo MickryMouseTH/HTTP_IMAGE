@@ -7,9 +7,9 @@ REM    - nginx reverse proxy in front (HTTP-Image-nginx)
 REM  Must be run as administrator.
 REM
 REM  Prerequisites:
-REM    1) start.bat ONCE first (creates .venv + installs deps), then stop it
-REM    2) nssm.exe next to this .bat or on PATH            (https://nssm.cc/download)
-REM    3) nginx for Windows extracted to %NGINX_DIR% below (http://nginx.org/en/download.html)
+REM    1) nssm.exe next to this .bat or on PATH            (https://nssm.cc/download)
+REM    2) nginx for Windows extracted to %NGINX_DIR% below (http://nginx.org/en/download.html)
+REM  (.venv is created automatically via setup.bat on first run.)
 REM ============================================================================
 setlocal
 
@@ -46,14 +46,13 @@ if not defined NSSM (
     exit /b 1
 )
 
-REM ----- venv check -----
-set "PYEXE=%~dp0.venv\Scripts\python.exe"
-if not exist "%PYEXE%" (
-    echo [ERROR] .venv\Scripts\python.exe not found
-    echo         Run start.bat once first to create the venv + install dependencies.
+REM ----- Ensure venv exists (setup.bat creates it on first run) -----
+call "%~dp0setup.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
+set "PYEXE=%~dp0.venv\Scripts\python.exe"
 
 REM ----- Install the COUNT app instances -----
 echo [CLUSTER] Installing %COUNT% app services from port %BASE_PORT% ...

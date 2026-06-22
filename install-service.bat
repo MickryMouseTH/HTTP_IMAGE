@@ -5,10 +5,9 @@ REM  - Auto-start on boot + auto-restart on crash
 REM  - Must be run as administrator
 REM
 REM  Before running:
-REM    1) Install dependencies first (double-click start.bat once to create
-REM       .venv + install requirements), then stop it with stop.bat
-REM    2) Provide nssm.exe - place it next to this .bat or have it on PATH
+REM    1) Provide nssm.exe - place it next to this .bat or have it on PATH
 REM       Download: https://nssm.cc/download
+REM  (.venv is created automatically via setup.bat on first run.)
 REM ============================================================================
 setlocal
 
@@ -40,14 +39,13 @@ if not defined NSSM (
     exit /b 1
 )
 
-REM ----- Check venv (run start.bat first to create it) -----
-set "PYEXE=%~dp0.venv\Scripts\python.exe"
-if not exist "%PYEXE%" (
-    echo [ERROR] .venv\Scripts\python.exe not found
-    echo         Run start.bat once first to create the venv + install dependencies
+REM ----- Ensure venv exists (setup.bat creates it on first run) -----
+call "%~dp0setup.bat"
+if errorlevel 1 (
     pause
     exit /b 1
 )
+set "PYEXE=%~dp0.venv\Scripts\python.exe"
 
 REM ----- If the service already exists, remove the old one first -----
 sc query "%SVC_NAME%" >nul 2>nul

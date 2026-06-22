@@ -243,7 +243,7 @@ process เดียวติด 1 core (ดูข้อ 3). ใช้หลา�
 |---|---|
 | `start-cluster.bat` | รัน **8 instance** บนพอร์ต `8080`–`8087` แต่ละตัวคนละหน้าต่าง (แก้ `COUNT`/`BASE_PORT` ได้ในไฟล์) |
 | `stop-cluster.bat` | ปิดทั้ง cluster (kill ทุก port ในช่วง) |
-| `nginx.windows.conf` | nginx reverse proxy + cache โหลดบาลานซ์ (`least_conn`) ไป 8 instance, ฟัง port 80 |
+| `nginx.windows.conf` | nginx reverse proxy + cache โหลดบาลานซ์ (`least_conn`) ไป 8 instance, ฟัง **port 50000** |
 | `install-cluster-service.bat` | **คำสั่งเดียวจบ** — ติดตั้งทั้ง 8 instance **+ nginx** เป็น Windows Service (auto-start ตอนบูต + auto-restart), copy `nginx.windows.conf` เข้า `%NGINX_DIR%\conf\nginx.conf` ให้เอง (Run as administrator) |
 | `uninstall-cluster-service.bat` | ถอนทั้ง cluster (8 instance + nginx) ทีเดียว |
 

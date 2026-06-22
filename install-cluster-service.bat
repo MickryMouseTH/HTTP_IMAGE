@@ -66,7 +66,7 @@ echo.
 echo [DONE] Cluster installed. Services auto-start on boot.
 echo        Manage: sc query state^= all ^| findstr HTTP-Image
 echo        Remove: uninstall-cluster-service.bat  (Run as administrator)
-echo        Browse: http://localhost/image/...
+echo        Browse: http://localhost:50000/image/...
 echo.
 pause
 endlocal
@@ -120,7 +120,7 @@ if %errorlevel%==0 (
     "%NSSM%" remove "%NGSVC%" confirm >nul 2>nul
 )
 
-echo [INSTALL] %NGSVC%  (reverse proxy on port 80)
+echo [INSTALL] %NGSVC%  (reverse proxy on port 50000)
 "%NSSM%" install "%NGSVC%" "%NGINX_DIR%\nginx.exe"
 "%NSSM%" set "%NGSVC%" AppDirectory "%NGINX_DIR%"
 "%NSSM%" set "%NGSVC%" DisplayName "HTTP Image Server - nginx"

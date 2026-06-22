@@ -12,19 +12,39 @@ REM Move to the folder where this .bat lives (run from anywhere)
 cd /d "%~dp0"
 
 REM ----- Locate a WORKING Python -----
-REM Try each candidate by actually running it (a present `py` launcher with no
-REM installed Python prints "No installed Python found!", so a where/exists
-REM check is not enough - we verify --version succeeds).
+REM 1) Try commands on PATH by actually running them (a present `py` launcher
+REM    with no installed Python prints "No installed Python found!", so a
+REM    where/exists check is not enough - we verify --version succeeds).
 set "PY="
 for %%C in ("py -3" "python" "python3") do (
     if not defined PY (
         %%~C --version >nul 2>nul && set "PY=%%~C"
     )
 )
+
+REM 2) Miniforge/Miniconda/Anaconda usually do NOT put python on PATH (you
+REM    normally `conda activate` first). Look in the default install locations.
+if not defined PY (
+    for %%P in (
+        "%USERPROFILE%\miniforge3\python.exe"
+        "%LOCALAPPDATA%\miniforge3\python.exe"
+        "%PROGRAMDATA%\miniforge3\python.exe"
+        "C:\miniforge3\python.exe"
+        "%USERPROFILE%\miniconda3\python.exe"
+        "%USERPROFILE%\Anaconda3\python.exe"
+        "%PROGRAMDATA%\Anaconda3\python.exe"
+    ) do (
+        if not defined PY if exist "%%~P" set PY="%%~P"
+    )
+)
+
 if not defined PY (
     echo [ERROR] No working Python found.
-    echo         The `py` launcher may exist but no Python is installed.
-    echo         Install Python from https://www.python.org/downloads/ ^(check "Add to PATH"^),
+    echo         Checked PATH ^(py / python / python3^) and common Miniforge/conda paths.
+    echo         If you use Miniforge, open the "Miniforge Prompt" ^(conda activate base^)
+    echo         and run start.bat from there, or install it in the default location
+    echo         ^(%%USERPROFILE%%\miniforge3^), or install Python from
+    echo         https://www.python.org/downloads/ ^(check "Add to PATH"^),
     echo         then run start.bat again.
     pause
     exit /b 1
